@@ -84,6 +84,11 @@
         <span class="status-pulse"></span>
         <span id="system-status-indicator">2 Workflows Live</span>
       </div>
+      <button class="btn-profile-toggle" id="open-profile-btn" title="View and Edit Student Profile & Parent Phone">
+        <span>👤</span>
+        <span id="nav-student-name">Sahil Ranakoti</span>
+        <span class="profile-pill-roll" id="nav-student-roll">24E51A05L3</span>
+      </button>
       <button class="btn-drawer-toggle" id="open-drawer-btn">
         <span>⚙️</span> Operations Drawer
       </button>
@@ -95,7 +100,7 @@
        ========================================================================= -->
   <div class="app-split-layout">
 
-    <!-- LEFT PANE: LIVE N8N PROCESS & LIFECYCLE MONITOR (SLIDES IN ON REQUEST) -->
+    <!-- LEFT PANE: LIVE AUTONOMOUS PROCESS & LIFECYCLE MONITOR (SLIDES IN ON REQUEST) -->
     <aside class="process-left-pane" id="process-left-pane">
       <div class="process-left-pane-inner">
 
@@ -103,7 +108,7 @@
         <div class="pane-card" id="process-monitor-card">
           <div class="pane-card-title">
             <h3>
-              <span>⚡</span> Process & n8n Monitor
+              <span>⚡</span> Autonomous Request Monitor
             </h3>
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <div class="active-pulse-dot" title="Live Pipeline Active"></div>
@@ -117,11 +122,11 @@
 
           <!-- Live Step-by-Step Progress Stream -->
           <div class="live-progress-stream">
-            <!-- Step 1: Running n8n -->
+            <!-- Step 1: Autonomous Pipeline Engine -->
             <div class="live-process-step" id="step-n8n">
               <div class="step-icon-badge">1</div>
               <div class="step-details">
-                <h4>Running n8n Workflow</h4>
+                <h4>Autonomous Pipeline Engine</h4>
                 <p id="step-n8n-desc">Waiting for trigger</p>
               </div>
             </div>
@@ -213,23 +218,23 @@
 
       <!-- Quick Prompt Chips -->
       <div class="quick-intent-chips">
+        <button class="intent-chip" data-msg="I need an outpass to go home this weekend">
+          <span>🎫</span> Request Outpass (Call Parent)
+        </button>
+        <button class="intent-chip" data-msg="What are the campus visitation hours and guest timings?">
+          <span>🏛️</span> Campus visit timings
+        </button>
         <button class="intent-chip" data-msg="The water tap in hostel 3 is leaking badly">
           <span>🚰</span> Report hostel tap leak
         </button>
         <button class="intent-chip" data-msg="I suggest we add more charging sockets in the 2nd floor library">
           <span>💡</span> Suggest library charging points
         </button>
-        <button class="intent-chip" data-msg="We want to organize a 24hr AI Hackathon in the auditorium next month">
-          <span>🎪</span> Propose club hackathon
-        </button>
         <button class="intent-chip" data-msg="What are the hostel gate timings and curfew?">
           <span>🚪</span> Hostel curfew timing
         </button>
         <button class="intent-chip" data-msg="What is the passing criteria under HR24 regulations?">
           <span>📊</span> HR24 passing marks
-        </button>
-        <button class="intent-chip" data-msg="Check status of CP-2026-1041">
-          <span>🔍</span> Track CP-2026-1041
         </button>
       </div>
 
@@ -279,7 +284,9 @@
               <input type="checkbox" id="voice-consent-checkbox" checked />
               <span>📞 AI Voice Clarification Consent (allow outbound phone calls for vague complaints)</span>
             </label>
-            <span style="color: var(--text-muted); font-size: 0.72rem;">Student: Sahil Ranakoti (24E51A05L3)</span>
+            <span style="color: var(--text-muted); font-size: 0.74rem;">
+              Student: <strong id="dock-student-name">Sahil Ranakoti</strong> (<span id="dock-student-roll">24E51A05L3</span>) &bull; Parent Phone: <strong id="dock-parent-phone" style="color: var(--purple-main);">+91 9876543210</strong> &bull; <button type="button" class="btn-text-link" id="dock-edit-profile-btn">Edit Profile ✎</button>
+            </span>
           </div>
         </form>
       </div>
@@ -305,6 +312,7 @@
         <button class="drawer-tab-btn active" data-tab="tab-backlog">📋 Backlog & Tickets</button>
         <button class="drawer-tab-btn" data-tab="tab-incidents">🧠 Shared Incidents</button>
         <button class="drawer-tab-btn" data-tab="tab-simulator">📞 Voice Simulator</button>
+        <button class="drawer-tab-btn" data-tab="tab-outpass-sim">🎫 Parent Outpass Call</button>
         <button class="drawer-tab-btn" data-tab="tab-audit">🛡️ Audit Stream</button>
       </div>
 
@@ -360,7 +368,31 @@
           <pre id="drawer-sim-output" style="background: #f8fafc; border: 1px solid var(--border-light); border-radius: 8px; padding: 0.75rem; margin-top: 1rem; font-family: monospace; font-size: 0.75rem; color: var(--purple-main); white-space: pre-wrap;">Ready to test voice callback.</pre>
         </div>
 
-        <!-- 4. AUDIT STREAM -->
+        <!-- 4. PARENT OUTPASS VOICE APPROVAL SIMULATOR -->
+        <div id="tab-outpass-sim" class="drawer-section">
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Test the automated OmniDimension Outpass Voice approval workflow. When a parent says <strong>"OK / Approved"</strong>, an official digital security gate pass is generated instantly!
+          </p>
+          <form id="drawer-outpass-sim-form">
+            <div style="margin-bottom: 0.85rem;">
+              <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Target Outpass Request</label>
+              <select id="drawer-sim-outpass-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border-light); border-radius: 6px; font-size: 0.82rem; margin-top: 0.25rem;">
+                <!-- Populated via app.js -->
+              </select>
+            </div>
+            <div style="display: flex; gap: 0.65rem; margin-bottom: 0.85rem;">
+              <button type="button" id="btn-sim-parent-approve" class="btn-send-message" style="flex: 1; justify-content: center; background: var(--green-light);">
+                ✓ Parent: "YES / OK" (Approve)
+              </button>
+              <button type="button" id="btn-sim-parent-deny" class="btn-cancel" style="border-color: var(--red-border); color: var(--red-main);">
+                ✗ Parent Denies
+              </button>
+            </div>
+          </form>
+          <pre id="drawer-outpass-sim-output" style="background: #f8fafc; border: 1px solid var(--border-light); border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem; font-family: monospace; font-size: 0.75rem; color: var(--purple-main); white-space: pre-wrap;">Ready to simulate parent voice authorization.</pre>
+        </div>
+
+        <!-- 5. AUDIT STREAM -->
         <div id="tab-audit" class="drawer-section">
           <div id="drawer-audit-list">
             <!-- Populated via app.js -->
@@ -368,6 +400,81 @@
         </div>
 
       </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       STUDENT ACCOUNT MODAL (FULLY EDITABLE PROFILE & PARENT PHONE)
+       ========================================================================= -->
+  <div class="modal-backdrop" id="student-profile-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <div class="profile-avatar-circle" id="modal-avatar-initials">SR</div>
+          <div>
+            <h3 style="font-size: 1.15rem; font-weight: 700;">Student Account Profile</h3>
+            <span style="font-size: 0.76rem; color: var(--text-secondary);">HITAM Student Management & Outpass Verification Contact</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="close-profile-modal-btn">&times;</button>
+      </div>
+
+      <form id="student-profile-form" class="modal-body">
+        <div class="profile-grid">
+          <div class="form-group">
+            <label>Student Full Name</label>
+            <input type="text" id="prof-name" class="modal-input" required />
+          </div>
+          <div class="form-group">
+            <label>Roll Number (Hall Ticket)</label>
+            <input type="text" id="prof-roll" class="modal-input" required />
+          </div>
+          <div class="form-group">
+            <label>College Email</label>
+            <input type="email" id="prof-email" class="modal-input" required />
+          </div>
+          <div class="form-group">
+            <label>Student Phone Number</label>
+            <input type="tel" id="prof-phone" class="modal-input" required />
+          </div>
+          <div class="form-group">
+            <label>Branch & Section</label>
+            <input type="text" id="prof-dept" class="modal-input" />
+          </div>
+          <div class="form-group">
+            <label>Hostel Block & Room</label>
+            <input type="text" id="prof-hostel" class="modal-input" />
+          </div>
+        </div>
+
+        <!-- PARENT / GUARDIAN VERIFICATION HIGHLIGHT BOX -->
+        <div class="parent-highlight-box">
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+            <span>📞</span>
+            <strong style="color: var(--purple-main); font-size: 0.88rem;">Parent / Guardian Voice Verification Contact</strong>
+          </div>
+          <p style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 0.75rem; line-height: 1.4;">
+            When you request an <strong>Outpass</strong>, our AI voice agent (OmniDimension) automatically calls this exact number. If your parent confirms with <em>"OK / Yes / Approved"</em>, your official gate pass is generated automatically.
+          </p>
+          <div class="profile-grid" style="grid-template-columns: 1fr 1fr;">
+            <div class="form-group">
+              <label>Parent / Guardian Name</label>
+              <input type="text" id="prof-parent-name" class="modal-input" required />
+            </div>
+            <div class="form-group">
+              <label>Parent Phone (Calls Go Here)</label>
+              <input type="tel" id="prof-parent-phone" class="modal-input" style="border-color: var(--purple-main); font-weight: 700; color: var(--purple-main);" required />
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" id="cancel-profile-btn">Cancel</button>
+          <button type="submit" class="btn-save-profile">
+            <span>💾 Save Profile</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 

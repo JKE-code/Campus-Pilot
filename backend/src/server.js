@@ -4,11 +4,13 @@ require('dotenv').config();
 const db = require('./db');
 const gemini = require('./gemini');
 const omnidim = require('./omnidimension');
+const mailer = require('./mailer');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || process.env.BACKEND_PORT || 5000;
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/webhook';
+
 
 app.use(cors());
 app.use(express.json());
@@ -48,6 +50,38 @@ app.get('/api/health', async (req, res) => {
     res.status(500).json({ status: 'degraded', database: 'error', error: err.message });
   }
 });
+
+// -----------------------------------------------------------------------------
+// 1b. Student Account Profile (Default: Sahil Ranakoti, Fully Editable)
+// -----------------------------------------------------------------------------
+let studentProfile = {
+  name: 'Sahil Ranakoti',
+  roll: '24E51A05L3',
+  email: '24e51a05L3@hitam.org',
+  phone: '+91 9248711150',
+  parent_name: 'Mr. Ranakoti',
+  parent_phone: '+91 9876543210',
+  department: 'Computer Science & Engineering',
+  section: 'CSE-D',
+  hostel_block: 'Hostel Block 3',
+  room_no: '302'
+};
+
+app.get('/api/student/profile', (req, res) => {
+  res.json({ profile: studentProfile });
+});
+
+app.put('/api/student/profile', (req, res) => {
+  const updates = req.body || {};
+  studentProfile = { ...studentProfile, ...updates };
+  console.log('[Student Profile Updated]:', studentProfile);
+  res.json({ success: true, message: 'Student profile updated successfully', profile: studentProfile });
+});
+
+app.get('/api/student/outbox', (req, res) => {
+  res.json({ outbox: mailer.getOutbox() });
+});
+
 
 // -----------------------------------------------------------------------------
 // 2. FAQ Grounded Search (Conversational Receptionist)
@@ -122,9 +156,12 @@ app.post('/api/chat/message', async (req, res) => {
   try {
     const {
       message = '',
-      student_name = 'Student',
-      student_email = 'student@hitam.org',
-      student_phone = '+91 9876543210',
+      student_name = studentProfile.name,
+      student_email = studentProfile.email,
+      student_phone = studentProfile.phone,
+      parent_name = studentProfile.parent_name,
+      parent_phone = studentProfile.parent_phone,
+      student_roll = studentProfile.roll,
       call_consent = true
     } = req.body;
 
@@ -335,25 +372,79 @@ app.post('/api/chat/message', async (req, res) => {
       });
     }
 
-    // Default: Grounded FAQ Lookup
-    // Grounded FAQ Search using complete_hitam_knowledgebase.md with Gemini 3.8 Flash
-    try {
-      const kbAnswer = await gemini.answerWithHitamKnowledgeBase(trimmed);
-      if (kbAnswer && !kbAnswer.toLowerCase().includes("i don't have that info")) {
-        return res.json({
-          intent: 'faq',
-          reply: kbAnswer,
-          source: 'HITAM Official Knowledge Base (complete_hitam_knowledgebase.md)',
-          confidence: 'high'
+    // 5. Detect Outpass Intent (Parent Voice Approval Workflow)
+    const outpassKeywords = ['outpass', 'out pass', 'gate pass', 'leave campus', 'going home', 'leave hostel', 'night out', 'permission to leave', 'day out', 'weekend leave', 'visit home', 'outing pass'];
+    const isOutpass = outpassKeywords.some(kw => lower.includes(kw));
+
+    if (isOutpass) {
+      const countRes = await db.query('SELECT COUNT(*) FROM requests');
+      const seq = parseInt(countRes.rows[0].count, 10) + 2001;
+      const tracking_id = `OP-2026-${seq}`;
+      const dept = 'Hostel Affairs & Security';
+      const outpass_valid_until = new Date(Date.now() + 48 * 3600 * 1000);
+
+      const insertRes = await db.query(`
+        INSERT INTO requests (
+          tracking_id, type, category, location, title, description,
+          urgency, status, student_name, student_email, student_phone,
+          call_consent, assigned_department, parent_name, parent_phone,
+          leave_reason, outpass_valid_until
+        ) VALUES ($1, 'outpass', 'hostel_outpass', 'Main Security Gate 1', $2, $3, 'high', 'awaiting_parent_approval', $4, $5, $6, true, $7, $8, $9, $10, $11)
+        RETURNING *
+      `, [
+        tracking_id, `Hostel Outpass Request — ${student_name}`, trimmed,
+        student_name, student_email, student_phone, dept,
+        parent_name, parent_phone, trimmed, outpass_valid_until
+      ]);
+
+      const ticket = insertRes.rows[0];
+
+      await db.query(`
+        INSERT INTO request_actions (request_id, actor_type, action_type, notes)
+        VALUES ($1, 'student', 'submission', 'Outpass request submitted. Calling parent for voice authorization.')
+      `, [ticket.id]);
+
+      // Fire OmniDimension Voice Call to Parent Phone
+      omnidim.callParentForOutpass(parent_phone, ticket.tracking_id, {
+        student_name,
+        roll: student_roll,
+        reason: trimmed
+      });
+
+      // Send initial Outpass Notice via Brevo SMTP to student profile email
+      try {
+        await mailer.sendOutpassEmail({
+          studentEmail: student_email,
+          studentName: student_name,
+          studentRoll: student_roll,
+          trackingId: ticket.tracking_id,
+          parentName: parent_name,
+          parentPhone: parent_phone,
+          reason: trimmed,
+          status: 'awaiting_parent_approval',
+          validUntil: outpass_valid_until
         });
+      } catch (e) {
+        console.warn('[Outpass Mail Notice Error]:', e.message);
       }
-    } catch (e) {
-      console.warn('Gemini KB lookup fallback:', e.message);
+
+
+      triggerN8nWebhook('campus-chat', { intent: 'outpass', ticket });
+
+      return res.json({
+        intent: 'outpass',
+        reply: `I have initiated your Official Outpass Request under **${ticket.tracking_id}** for **${student_name}** (${student_roll}).\n\n📞 **OmniDimension Parent Voice Verification Dispatched:**\nCalling parent **${parent_name}** at **${parent_phone}** to verify approval.\n\n📧 **Email Confirmation:** A confirmation notice has been dispatched to **${student_email}**.\n\nOnce your parent confirms with *"OK / Yes / Approved"*, your digital security gate pass will be generated and emailed automatically!`,
+        ticket,
+        parent_phone,
+        needs_voice: true
+      });
     }
 
-    // Fallback: search database rows
+
+    // 6. Fast Grounded FAQ Lookup
+    // Step A: Instant check across curated database knowledge base for <15ms responses
     const allKb = await db.query('SELECT id, category, question, answer, keywords, source FROM knowledge_base');
-    const queryTokens = lower.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+    const queryTokens = lower.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(t => t.length > 2);
     let bestMatch = null;
     let highestMatches = 0;
 
@@ -369,7 +460,7 @@ app.post('/api/chat/message', async (req, res) => {
       }
     }
 
-    if (bestMatch && highestMatches >= 1) {
+    if (bestMatch && highestMatches >= 2) {
       return res.json({
         intent: 'faq',
         reply: bestMatch.answer,
@@ -379,11 +470,38 @@ app.post('/api/chat/message', async (req, res) => {
       });
     }
 
+    // Step B: Gemini Flash lookup on targeted knowledge base chunk
+    try {
+      const kbAnswer = await gemini.answerWithHitamKnowledgeBase(trimmed);
+      if (kbAnswer && !kbAnswer.toLowerCase().includes("i don't have that info")) {
+        return res.json({
+          intent: 'faq',
+          reply: kbAnswer,
+          source: 'HITAM Official Knowledge Base (complete_hitam_knowledgebase.md)',
+          confidence: 'high'
+        });
+      }
+    } catch (e) {
+      console.warn('Gemini KB lookup fallback:', e.message);
+    }
+
+    // Step C: Fallback to single match or guidance
+    if (bestMatch && highestMatches >= 1) {
+      return res.json({
+        intent: 'faq',
+        reply: bestMatch.answer,
+        category: bestMatch.category,
+        source: bestMatch.source,
+        confidence: 'medium'
+      });
+    }
+
     return res.json({
       intent: 'faq_fallback',
-      reply: "I couldn't find an officially verified answer in the HITAM handbook for this query. Rather than guessing, would you like to file this as a **maintenance complaint**, **suggestion**, or **general inquiry**? You can simply type what you need!",
+      reply: "I couldn't find an officially verified answer in the HITAM handbook for this query. Rather than guessing, would you like to file this as a **maintenance complaint**, **suggestion**, or **outpass request**? You can simply type what you need!",
       confidence: 'low'
     });
+
   } catch (err) {
     console.error('Chat message processing error:', err);
     res.status(500).json({ error: err.message });
@@ -727,7 +845,95 @@ app.post('/api/voice/callback', async (req, res) => {
 
     const ticket = findRes.rows[0];
 
-    // Enriched description or location if clarified in call
+    // Check if this is an Outpass Parent Verification Call
+    if (ticket.type === 'outpass') {
+      const lowerTranscript = (transcript || '').toLowerCase();
+      const isApproved = req.body.action === 'approve_outpass' || 
+                         req.body.approved === true || 
+                         req.body.parent_consent === true ||
+                         (req.body.intent === 'outpass_decision' && req.body.approved !== false) ||
+                         ['yes', 'ok', 'approved', 'allow', 'permission given', 'confirm'].some(w => lowerTranscript.includes(w));
+
+      if (isApproved) {
+        const outpass_code = `HITAM-PASS-${Math.floor(100000 + Math.random() * 900000)}`;
+        await db.query(`
+          UPDATE requests 
+          SET status = 'approved',
+              outpass_code = $1,
+              voice_call_status = 'completed',
+              voice_transcript = $2,
+              voice_extracted_details = $3,
+              updated_at = NOW()
+          WHERE id = $4
+        `, [
+          outpass_code,
+          transcript || 'Parent confirmed via OmniDimension voice: Outpass Approved.',
+          JSON.stringify({ parent_decision: 'approved', outpass_code }),
+          ticket.id
+        ]);
+
+        await db.query(`
+          INSERT INTO request_actions (request_id, actor_type, action_type, notes)
+          VALUES ($1, 'parent', 'parent_approved', $2)
+        `, [ticket.id, `Parent verified leave permission via OmniDimension voice. Digital Gate Pass ${outpass_code} issued.`]);
+
+        // Send Official Approved Gatepass via Brevo SMTP to student profile email
+        try {
+          await mailer.sendOutpassEmail({
+            studentEmail: ticket.student_email,
+            studentName: ticket.student_name,
+            studentRoll: studentProfile.roll || '24E51A05L3',
+            trackingId: ticket.tracking_id,
+            outpassCode: outpass_code,
+            parentName: ticket.parent_name,
+            parentPhone: ticket.parent_phone,
+            reason: ticket.leave_reason,
+            status: 'approved',
+            validUntil: ticket.outpass_valid_until
+          });
+        } catch (e) {
+          console.warn('[Approved Outpass Mail Notice Error]:', e.message);
+        }
+
+
+        triggerN8nWebhook('voice-callback', { ticketId: ticket.id, tracking_id: ticket.tracking_id, status: 'approved', outpass_code });
+
+        return res.json({
+          success: true,
+          message: 'Parent approved outpass. Official digital security pass generated and emailed!',
+          tracking_id: ticket.tracking_id,
+          status: 'approved',
+          outpass_code
+        });
+
+      } else {
+        await db.query(`
+          UPDATE requests 
+          SET status = 'rejected',
+              voice_call_status = 'completed',
+              voice_transcript = $1,
+              updated_at = NOW()
+          WHERE id = $2
+        `, [
+          transcript || 'Parent denied outpass permission.',
+          ticket.id
+        ]);
+
+        await db.query(`
+          INSERT INTO request_actions (request_id, actor_type, action_type, notes)
+          VALUES ($1, 'parent', 'parent_rejected', 'Parent denied leave request via voice call.')
+        `, [ticket.id]);
+
+        return res.json({
+          success: true,
+          message: 'Parent denied outpass request.',
+          tracking_id: ticket.tracking_id,
+          status: 'rejected'
+        });
+      }
+    }
+
+    // Enriched description or location if clarified in call (Maintenance / Complaints)
     let enrichedLocation = ticket.location;
     if (extracted_details.wing || extracted_details.room || extracted_details.floor) {
       enrichedLocation += ` (${[extracted_details.wing, extracted_details.floor, extracted_details.room].filter(Boolean).join(', ')})`;
@@ -767,6 +973,50 @@ app.post('/api/voice/callback', async (req, res) => {
     console.error('Voice callback error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// Interactive Parent Decision for Outpass (for live demo or testing)
+app.post('/api/outpass/:tracking_id/parent-decision', async (req, res) => {
+  const { tracking_id } = req.params;
+  const { decision = 'approved', notes = '' } = req.body;
+
+  const mockTranscript = decision === 'approved'
+    ? `CampusPilot: Hello, this is HITAM Campus Security calling regarding an outpass request for your ward Sahil Ranakoti. Do you approve? Parent: Yes, OK, I approve. CampusPilot: Thank you. Outpass is approved and generated.`
+    : `CampusPilot: Hello, this is HITAM Campus Security calling regarding an outpass request for your ward Sahil Ranakoti. Do you approve? Parent: No, I do not approve. CampusPilot: Understood. The outpass request has been rejected.`;
+
+  return app._router.handle({
+    method: 'POST',
+    url: '/api/voice/callback',
+    body: {
+      tracking_id,
+      call_status: 'completed',
+      action: decision === 'approved' ? 'approve_outpass' : 'deny_outpass',
+      approved: decision === 'approved',
+      parent_consent: decision === 'approved',
+      transcript: mockTranscript,
+      extracted_details: {
+        parent_decision: decision,
+        notes: notes || `Parent ${decision} via simulated phone call`
+      }
+    }
+  }, res);
+});
+
+// Outbound Voice Call Request for Campus Timings & Visitation Desk
+app.post('/api/voice/request-info-call', async (req, res) => {
+  const { phone = studentProfile.phone, topic = 'campus_visitation_and_timings' } = req.body;
+  const tracking_id = `INFO-${Date.now().toString().slice(-4)}`;
+  omnidim.placeOutboundVoiceCall(phone, tracking_id, {
+    title: 'HITAM College Visitation and Timings Inquiry',
+    category: 'campus_information',
+    student_name: studentProfile.name,
+    location: 'Main Administrative Block'
+  });
+  res.json({
+    success: true,
+    message: `Automated OmniDimension voice call scheduled to ${phone} with campus visitation timings and admissions information!`,
+    tracking_id
+  });
 });
 
 // Trigger a simulated voice clarification call (for live demonstration)

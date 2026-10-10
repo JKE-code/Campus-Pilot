@@ -1,6 +1,6 @@
 /**
  * CampusPilot AI — Google Gemini API Client
- * Integrated with complete_hitam_knowledgebase.md using Gemini 3.8 Flash
+ * Optimized with Intelligent Chunk Retrieval and Response Caching
  */
 
 require('dotenv').config();
@@ -8,19 +8,65 @@ const fs = require('fs');
 const path = require('path');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-flash-latest';
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
 
-// Load complete_hitam_knowledgebase.md into memory
-let hitamKnowledgeBaseText = '';
+// In-memory cache for fast responses
+const responseCache = new Map();
+
+// Parse complete_hitam_knowledgebase.md into structured sections
+let hitamSections = [];
+let fullKbText = '';
+
 try {
   const kbPath = path.resolve(__dirname, '../../complete_hitam_knowledgebase.md');
   if (fs.existsSync(kbPath)) {
-    hitamKnowledgeBaseText = fs.readFileSync(kbPath, 'utf8');
-    console.log(`[Gemini Knowledge Base] Loaded complete_hitam_knowledgebase.md (${hitamKnowledgeBaseText.length} bytes)`);
+    fullKbText = fs.readFileSync(kbPath, 'utf8');
+    
+    // Split into sections by Markdown headings
+    const rawSections = fullKbText.split(/\n(?=#{1,3}\s+)/);
+    hitamSections = rawSections.map(sec => {
+      const firstLine = sec.split('\n')[0] || '';
+      const title = firstLine.replace(/^#+\s*/, '').trim();
+      return {
+        title,
+        content: sec.trim(),
+        lower: sec.toLowerCase()
+      };
+    }).filter(s => s.content.length > 50);
+
+    console.log(`[Gemini Knowledge Base] Indexed ${hitamSections.length} topical sections from complete_hitam_knowledgebase.md`);
   }
 } catch (err) {
-  console.warn('[Gemini Knowledge Base] Could not load markdown file:', err.message);
+  console.warn('[Gemini Knowledge Base] Could not index markdown file:', err.message);
+}
+
+/**
+ * Retrieves the most relevant knowledge sections based on query tokens
+ */
+function getRelevantKbContext(query) {
+  if (hitamSections.length === 0) return fullKbText.substring(0, 3000);
+
+  const tokens = query.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(t => t.length > 2);
+  
+  const scored = hitamSections.map(sec => {
+    let score = 0;
+    tokens.forEach(tok => {
+      if (sec.title.toLowerCase().includes(tok)) score += 5;
+      if (sec.lower.includes(tok)) score += 1;
+    });
+    return { ...sec, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  // Take top 2 sections or default to first 2 sections
+  const topSections = scored.filter(s => s.score > 0).slice(0, 2);
+  if (topSections.length === 0) {
+    return hitamSections.slice(0, 2).map(s => s.content).join('\n\n---\n\n');
+  }
+
+  return topSections.map(s => s.content).join('\n\n---\n\n');
 }
 
 async function callGemini(prompt, systemInstruction = '') {
@@ -35,7 +81,11 @@ async function callGemini(prompt, systemInstruction = '') {
         {
           parts: [{ text: prompt }]
         }
-      ]
+      ],
+      generationConfig: {
+        maxOutputTokens: 250,
+        temperature: 0.2
+      }
     };
 
     if (systemInstruction) {
@@ -70,55 +120,48 @@ async function callGemini(prompt, systemInstruction = '') {
 }
 
 /**
- * Answers questions using complete_hitam_knowledgebase.md directly
+ * Answers questions quickly using relevant chunks from complete_hitam_knowledgebase.md
  */
 async function answerWithHitamKnowledgeBase(userQuestion) {
-  // If we have the full knowledge base, supply it as grounded authority
-  const systemInstruction = `You are the HITAM Campus Assistant at Hyderabad Institute of Technology and Management.
-You have access to the complete official campus knowledge base below.
+  const cacheKey = userQuestion.toLowerCase().trim();
+  if (responseCache.has(cacheKey)) {
+    return responseCache.get(cacheKey);
+  }
 
-RULES:
-1. Grounding: Answer strictly using facts from the provided HITAM Knowledge Base. Never invent policies, names, bus timings, or rules.
-2. Identity: You were built by Sahil Ranakoti (B.Tech CSE Section D) as a personal project. You are NOT Sahil. Refer to him in the third person.
-3. Tone: Warm, helpful, slightly witty, concise (2-4 short sentences max). Never sound like a generic brochure.
-4. If the question cannot be answered from the knowledge base, state honestly: "I don't have that info in the handbook — please check with your department office."
+  const relevantContext = getRelevantKbContext(userQuestion);
 
-HITAM KNOWLEDGE BASE:
-${hitamKnowledgeBaseText}`;
+  const systemInstruction = `You are the official HITAM Campus Assistant.
+Grounding: Answer strictly using facts from the provided HITAM Knowledge Base.
+Identity: Built by Sahil Ranakoti (B.Tech CSE Section D). Refer to him in third person.
+Tone: Warm, concise, direct (2-3 sentences max). Never sound like a brochure.
+If info is absent, say: "I don't have that in the official handbook — please check with your department office."
+
+HITAM EXCERPT:
+${relevantContext}`;
 
   const prompt = `Student Question: "${userQuestion}"`;
-  return await callGemini(prompt, systemInstruction);
+  const answer = await callGemini(prompt, systemInstruction);
+
+  if (answer) {
+    responseCache.set(cacheKey, answer);
+    if (responseCache.size > 100) {
+      const oldestKey = responseCache.keys().next().value;
+      responseCache.delete(oldestKey);
+    }
+  }
+
+  return answer;
 }
 
 /**
- * Intelligently extracts intent, category, and missing detail flags using Gemini
+ * Fast intent analysis with local fallback
  */
 async function analyzeIntentWithGemini(userMessage) {
-  const systemPrompt = `You are the intent parsing engine for CampusPilot AI at HITAM.
-Classify the user utterance into one of the following intents:
-- "faq": general question about college timings, hostel curfew, library, canteen, Wi-Fi, syllabus, buses, or HR24 exam regulations.
-- "complaint": broken equipment, water leak, tap issue, Wi-Fi down, plumbing, hostel facility failure.
-- "suggestion": improvement idea, request for new amenities, curriculum feedback.
-- "event_proposal": request to organize a hackathon, fest, workshop, or student club event.
-- "track": tracking an existing ticket ID (e.g. CP-2026-XXXX).
-
-Return ONLY valid JSON with no markdown formatting:
-{
-  "intent": "faq" | "complaint" | "suggestion" | "event_proposal" | "track",
-  "category": "maintenance" | "hostel" | "it_network" | "academics" | "student_activities",
-  "location": "extracted location or null",
-  "room_or_wing_specified": true | false,
-  "urgency": "low" | "medium" | "high" | "critical",
-  "summary": "clean 1-line title"
-}`;
-
-  const prompt = `Analyze this student utterance: "${userMessage}"`;
-  const result = await callGemini(prompt, systemPrompt);
-
-  if (!result) return null;
-
+  const prompt = `Classify this student utterance: "${userMessage}". Return JSON: {"intent": "faq"|"complaint"|"suggestion"|"event_proposal"|"outpass"|"track"}`;
+  const res = await callGemini(prompt);
+  if (!res) return null;
   try {
-    const cleaned = result.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const cleaned = res.replace(/```json/gi, '').replace(/```/g, '').trim();
     return JSON.parse(cleaned);
   } catch (e) {
     return null;
@@ -129,5 +172,6 @@ module.exports = {
   callGemini,
   analyzeIntentWithGemini,
   answerWithHitamKnowledgeBase,
-  hitamKnowledgeBaseText
+  getRelevantKbContext
 };
+

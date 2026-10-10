@@ -4,13 +4,25 @@
 
 const API_BASE = 'http://localhost:5000/api';
 
-// Student Profile State
-const currentStudent = {
+// Student Profile State (Default: Sahil Ranakoti, Fully Editable)
+let currentStudent = {
   name: 'Sahil Ranakoti',
   email: '24e51a05L3@hitam.org',
   phone: '+91 9248711150',
-  roll: '24E51A05L3'
+  roll: '24E51A05L3',
+  parent_name: 'Mr. Ranakoti',
+  parent_phone: '+91 9876543210',
+  dept: 'CSE - Section D',
+  hostel: 'Hostel Block 3, Room 302'
 };
+
+// Load cached profile from localStorage if exists
+try {
+  const savedProfile = localStorage.getItem('campuspilot_student_profile');
+  if (savedProfile) {
+    currentStudent = { ...currentStudent, ...JSON.parse(savedProfile) };
+  }
+} catch (e) {}
 
 let allRequestsList = [];
 let activeTrackedTicket = null;
@@ -20,6 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupQuickChips();
   setupDrawer();
   setupLeftPaneControls();
+  setupProfileModal();
+  syncStudentProfileUI();
   checkSystemStatus();
   fetchInitialData();
 });
@@ -105,6 +119,9 @@ function setupChatbot() {
           student_name: currentStudent.name,
           student_email: currentStudent.email,
           student_phone: currentStudent.phone,
+          parent_name: currentStudent.parent_name,
+          parent_phone: currentStudent.parent_phone,
+          student_roll: currentStudent.roll,
           call_consent: consentCheckbox.checked
         })
       });
@@ -174,7 +191,7 @@ function renderTypingIndicator() {
     <div class="chat-avatar bot">🤖</div>
     <div class="chat-bubble-payload">
       <div class="chat-text-card" style="color: var(--text-muted); font-style: italic;">
-        Understanding intent and running n8n orchestrator...
+        Understanding intent and routing request...
       </div>
     </div>
   `;
@@ -223,6 +240,113 @@ function renderBotResponse(data) {
 
 // Build Interactive Ticket Card with Live Stepper
 function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = false) {
+  // SPECIALIZED OUTPASS WORKFLOW RENDERING
+  if (t.type === 'outpass') {
+    if (t.status === 'approved') {
+      return `
+        <div class="ticket-interactive-card" id="card-${t.tracking_id}" style="border-color: var(--green-border);">
+          <div class="digital-outpass-container">
+            <div class="digital-outpass-header">
+              <div>
+                <span style="font-size: 0.72rem; font-weight: 700; color: var(--green-main); letter-spacing: 0.05em; text-transform: uppercase;">Official Security Clearance</span>
+                <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary); margin: 0.15rem 0;">HITAM Digital Hostel Outpass</h3>
+                <span class="quick-ref" style="font-size: 0.85rem; color: var(--purple-main);">${t.tracking_id}</span>
+              </div>
+              <div class="outpass-qr-sim" title="Scan at Security Gate 1">📱</div>
+            </div>
+
+            <div class="outpass-detail-grid">
+              <div>
+                <span style="color: var(--text-muted); font-size: 0.72rem;">Student Name</span>
+                <div style="font-weight: 700;">${escapeHtml(t.student_name)}</div>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); font-size: 0.72rem;">Roll Number</span>
+                <div style="font-weight: 700;">${currentStudent.roll}</div>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); font-size: 0.72rem;">Destination / Reason</span>
+                <div>${escapeHtml(t.description || t.title)}</div>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); font-size: 0.72rem;">Parent Phone Verified</span>
+                <div style="font-weight: 700; color: var(--purple-main);">${t.parent_phone || currentStudent.parent_phone}</div>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); font-size: 0.72rem;">Pass Security Code</span>
+                <div style="font-family: monospace; font-weight: 800; color: #15803d;">${t.outpass_code || 'HITAM-PASS-948102'}</div>
+              </div>
+              <div>
+                <span style="color: var(--text-muted); font-size: 0.72rem;">Valid For</span>
+                <div style="font-weight: 700; color: var(--green-main);">Next 48 Hours</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border-light); padding-top: 0.65rem;">
+              <span class="outpass-stamp">✓ PARENT APPROVED VIA OMNIDIMENSION VOICE</span>
+              <span class="pill-badge pill-approved">ACTIVE FOR GATE EXIT</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    if (t.status === 'rejected') {
+      return `
+        <div class="ticket-interactive-card" id="card-${t.tracking_id}" style="border-color: var(--red-border);">
+          <div class="ticket-header-strip">
+            <div>
+              <span class="ticket-ref-id">${t.tracking_id}</span>
+              <div style="font-size: 0.76rem; color: var(--text-muted);">Hostel Affairs & Security</div>
+            </div>
+            <span class="pill-badge pill-rejected">OUTPASS DENIED</span>
+          </div>
+          <div style="padding: 0.75rem; background: var(--red-soft); border-radius: 6px; font-size: 0.82rem; color: var(--red-main);">
+            ❌ Parent denied permission for this leave request during the automated OmniDimension verification call. Outpass cannot be issued.
+          </div>
+        </div>
+      `;
+    }
+
+    // Default awaiting parent approval:
+    return `
+      <div class="ticket-interactive-card" id="card-${t.tracking_id}">
+        <div class="ticket-header-strip">
+          <div>
+            <span class="ticket-ref-id">${t.tracking_id}</span>
+            <div style="font-size: 0.76rem; color: var(--text-muted);">Hostel Affairs & Security &bull; ${t.student_name}</div>
+          </div>
+          <span class="pill-badge pill-awaiting_parent_approval">AWAITING PARENT CALL</span>
+        </div>
+
+        <div style="font-size: 0.88rem; font-weight: 600; margin-bottom: 0.5rem;">${escapeHtml(t.title)}</div>
+
+        <div class="callout-box callout-voice" style="border-color: var(--amber-border); background: rgba(245, 158, 11, 0.08);">
+          <span>📞</span>
+          <div>
+            <strong style="color: var(--amber-main);">OmniDimension Parent Outbound Call Dispatched:</strong>
+            <span>Automated call in progress to parent <strong>${t.parent_name || currentStudent.parent_name}</strong> at <strong style="color: var(--purple-main);">${t.parent_phone || currentStudent.parent_phone}</strong> to confirm leave permission.</span>
+          </div>
+        </div>
+
+        <!-- Live Demonstration Simulation Controls -->
+        <div style="border-top: 1px solid var(--border-light); padding-top: 0.75rem; margin-top: 0.5rem;">
+          <span style="font-size: 0.76rem; color: var(--text-secondary); display: block; margin-bottom: 0.45rem;">
+            ⚡ <strong>Test Voice Webhook:</strong> Simulate parent answering call:
+          </span>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn-send-message" style="background: var(--green-light); padding: 0.35rem 0.85rem; font-size: 0.76rem; flex: 1; justify-content: center;" onclick="simulateParentOutpassDecision('${t.tracking_id}', 'approved')">
+              ✓ Simulate Parent Saying: "YES / OK" (Approve)
+            </button>
+            <button class="btn-cancel" style="padding: 0.35rem 0.75rem; font-size: 0.76rem; border-color: var(--red-border); color: var(--red-main);" onclick="simulateParentOutpassDecision('${t.tracking_id}', 'rejected')">
+              ✗ Simulate Parent Denying
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   const statusSteps = {
     submitted: 1,
     awaiting_details: 1,
@@ -381,8 +505,40 @@ function animateLeftPaneProgression(ticket, data = {}) {
   pill.textContent = (ticket.status || 'assigned').toUpperCase().replace('_', ' ');
   pill.className = `pill-badge pill-${ticket.status || 'assigned'}`;
 
-  // Step 1: Running n8n
-  setStepState('step-n8n', 'running', 'Running n8n Workflow', '01_campuspilot_master_orchestrator invoked');
+  // OUTPASS WORKFLOW ANIMATION
+  if (ticket.type === 'outpass') {
+    setStepState('step-n8n', 'running', 'Autonomous Pipeline Engine', 'Orchestration pipeline initialized');
+    setStepState('step-intent', 'pending', 'Parsing Outpass Intent', 'Gemini intent classifier');
+    setStepState('step-raising', 'pending', 'Retrieving Parent Phone', `Guardian: ${ticket.parent_phone || currentStudent.parent_phone}`);
+    setStepState('step-raised', 'pending', 'Outpass Request Created', 'Hostel Affairs & Security');
+    setStepState('step-voice', 'pending', 'Parent Voice Verification', 'OmniDimension outbound caller');
+    setStepState('step-solve', 'pending', 'Digital Gate Pass Issuance', 'Pending parent approval');
+
+    setTimeout(() => {
+      setStepState('step-n8n', 'completed', 'Autonomous Pipeline Engine', 'Pipeline synchronized');
+      setStepState('step-intent', 'completed', 'Outpass Intent Verified', `Student: ${ticket.student_name}`);
+    }, 350);
+
+    setTimeout(() => {
+      setStepState('step-raising', 'completed', 'Guardian Phone Linked', `Parent: ${ticket.parent_phone || currentStudent.parent_phone}`);
+      setStepState('step-raised', 'completed', 'Outpass Request Logged', 'Assigned to Security Gate 1');
+      setStepState('step-voice', 'running', 'Calling Parent via OmniDimension', `Calling ${ticket.parent_phone || currentStudent.parent_phone} for consent`);
+    }, 750);
+
+    setTimeout(() => {
+      if (ticket.status === 'approved') {
+        setStepState('step-voice', 'completed', 'Parent Voice Approved', 'Parent confirmed: "YES / OK"');
+        setStepState('step-solve', 'completed', 'Digital Gate Pass Issued', `Gate Pass: ${ticket.outpass_code || 'ACTIVE'}`);
+      } else {
+        setStepState('step-voice', 'running', 'Calling Parent via OmniDimension', `Awaiting parent voice consent at ${ticket.parent_phone || currentStudent.parent_phone}`);
+        setStepState('step-solve', 'pending', 'Digital Gate Pass Issuance', 'Will generate automatically upon parent "OK"');
+      }
+    }, 1200);
+    return;
+  }
+
+  // Step 1: Autonomous Pipeline Engine
+  setStepState('step-n8n', 'running', 'Autonomous Pipeline Engine', 'Orchestrating request lifecycle');
   setStepState('step-intent', 'pending', 'Parsing Intent & Entities', 'Gemini intent classification queue');
   setStepState('step-raising', 'pending', 'Raising Request', 'Pending evaluation');
   setStepState('step-raised', 'pending', 'Request Raised', 'Pending assignment');
@@ -390,9 +546,10 @@ function animateLeftPaneProgression(ticket, data = {}) {
   setStepState('step-solve', 'pending', 'In Progress / Resolving', 'Awaiting crew');
 
   setTimeout(() => {
-    setStepState('step-n8n', 'completed', 'Running n8n Workflow', '01_campuspilot_master_orchestrator executed');
-    setStepState('step-intent', 'running', 'Parsing Intent & Entities', 'Gemini 3.8 Flash model classification');
+    setStepState('step-n8n', 'completed', 'Autonomous Pipeline Engine', 'Pipeline synchronized');
+    setStepState('step-intent', 'running', 'Parsing Intent & Entities', 'Gemini classification active');
   }, 350);
+
 
   setTimeout(() => {
     setStepState('step-intent', 'completed', 'Parsing Intent & Entities', `Classified as ${ticket.type || 'request'} (${ticket.category || 'facilities'})`);
@@ -432,11 +589,12 @@ function updateLeftPaneProgress(trackingId, status, estimatedTime, metadata = {}
   pill.textContent = status.toUpperCase().replace('_', ' ');
   pill.className = `pill-badge pill-${status}`;
 
-  // Step 1: n8n Completed
-  setStepState('step-n8n', 'completed', 'Running n8n Workflow', '01_campuspilot_master_orchestrator');
+  // Step 1: Autonomous Pipeline Engine Completed
+  setStepState('step-n8n', 'completed', 'Autonomous Pipeline Engine', 'Pipeline synchronized');
   
   // Step 2: Intent parsed
-  setStepState('step-intent', 'completed', 'Parsing Intent & Entities', 'Gemini 3.8 Flash model classification');
+  setStepState('step-intent', 'completed', 'Parsing Intent & Entities', 'Gemini intent classification completed');
+
   
   // Step 3: Raising request completed
   setStepState('step-raising', 'completed', 'Raising Request', 'Cluster checks completed');
@@ -620,6 +778,170 @@ function setupDrawer() {
       out.textContent = 'Error: ' + err.message;
     }
   });
+
+  // Outpass Parent Decision Simulator
+  const outpassSelect = document.getElementById('drawer-sim-outpass-select');
+  const btnApprove = document.getElementById('btn-sim-parent-approve');
+  const btnDeny = document.getElementById('btn-sim-parent-deny');
+  const outpassOut = document.getElementById('drawer-outpass-sim-output');
+
+  if (btnApprove) {
+    btnApprove.addEventListener('click', async () => {
+      const trackingId = outpassSelect.value;
+      if (!trackingId) return alert('No outpass ticket selected.');
+      outpassOut.textContent = `📞 Calling Parent Phone...\nParent: "Yes, OK, I approve."\nGenerating Digital Pass...`;
+      await window.simulateParentOutpassDecision(trackingId, 'approved');
+      outpassOut.textContent = `✅ Outpass ${trackingId} APPROVED! Official Digital Gate Pass Issued.`;
+    });
+  }
+
+  if (btnDeny) {
+    btnDeny.addEventListener('click', async () => {
+      const trackingId = outpassSelect.value;
+      if (!trackingId) return alert('No outpass ticket selected.');
+      outpassOut.textContent = `📞 Calling Parent Phone...\nParent: "No, I do not approve."\nRecording rejection...`;
+      await window.simulateParentOutpassDecision(trackingId, 'rejected');
+      outpassOut.textContent = `❌ Outpass ${trackingId} REJECTED by parent.`;
+    });
+  }
+}
+
+// Global handler to simulate parent outpass decision from either Chat Card or Operations Drawer
+window.simulateParentOutpassDecision = async (trackingId, decision) => {
+  try {
+    const res = await fetch(`${API_BASE}/outpass/${trackingId}/parent-decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision })
+    });
+
+    if (res.ok) {
+      const checkRes = await fetch(`${API_BASE}/requests/${trackingId}`);
+      const { request } = await checkRes.json();
+      const card = document.getElementById(`card-${trackingId}`);
+      if (card && request) {
+        card.outerHTML = renderInteractiveTicketCard(request);
+      }
+
+      if (decision === 'approved') {
+        updateLeftPaneProgress(trackingId, 'approved', 'Active / Valid 48h', {
+          assigned_department: 'Hostel Affairs & Security',
+          voice_status: 'completed'
+        });
+        setStepState('step-voice', 'completed', 'Parent Voice Approved', 'Parent confirmed: "YES / OK"');
+        setStepState('step-solve', 'completed', 'Digital Gate Pass Issued', `Gate Pass: ${request.outpass_code || 'ACTIVE'}`);
+      } else {
+        updateLeftPaneProgress(trackingId, 'rejected', 'Denied', {
+          assigned_department: 'Hostel Affairs & Security',
+          voice_status: 'completed'
+        });
+        setStepState('step-voice', 'completed', 'Parent Voice Denied', 'Parent rejected leave request');
+        setStepState('step-solve', 'pending', 'Outpass Denied', 'Cannot exit campus');
+      }
+
+      await fetchRequestsAndPopulateLeftPane(trackingId);
+    }
+  } catch (err) {
+    alert('Failed to simulate parent decision: ' + err.message);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// 6. Student Profile Account Management & Parent Phone Sync
+// ---------------------------------------------------------------------------
+function syncStudentProfileUI() {
+  const navName = document.getElementById('nav-student-name');
+  const navRoll = document.getElementById('nav-student-roll');
+  const dockName = document.getElementById('dock-student-name');
+  const dockRoll = document.getElementById('dock-student-roll');
+  const dockParent = document.getElementById('dock-parent-phone');
+  const initials = document.getElementById('modal-avatar-initials');
+
+  if (navName) navName.textContent = currentStudent.name;
+  if (navRoll) navRoll.textContent = currentStudent.roll;
+  if (dockName) dockName.textContent = currentStudent.name;
+  if (dockRoll) dockRoll.textContent = currentStudent.roll;
+  if (dockParent) dockParent.textContent = currentStudent.parent_phone;
+  if (initials && currentStudent.name) {
+    const parts = currentStudent.name.split(' ');
+    initials.textContent = (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  }
+
+  // Populate modal form inputs
+  const pName = document.getElementById('prof-name');
+  const pRoll = document.getElementById('prof-roll');
+  const pEmail = document.getElementById('prof-email');
+  const pPhone = document.getElementById('prof-phone');
+  const pDept = document.getElementById('prof-dept');
+  const pHostel = document.getElementById('prof-hostel');
+  const pParentName = document.getElementById('prof-parent-name');
+  const pParentPhone = document.getElementById('prof-parent-phone');
+
+  if (pName) pName.value = currentStudent.name;
+  if (pRoll) pRoll.value = currentStudent.roll;
+  if (pEmail) pEmail.value = currentStudent.email;
+  if (pPhone) pPhone.value = currentStudent.phone;
+  if (pDept) pDept.value = currentStudent.dept || 'CSE - Section D';
+  if (pHostel) pHostel.value = currentStudent.hostel || 'Hostel Block 3, Room 302';
+  if (pParentName) pParentName.value = currentStudent.parent_name || 'Mr. Ranakoti';
+  if (pParentPhone) pParentPhone.value = currentStudent.parent_phone || '+91 9876543210';
+}
+
+function setupProfileModal() {
+  const modal = document.getElementById('student-profile-modal');
+  const openBtn = document.getElementById('open-profile-btn');
+  const dockLink = document.getElementById('dock-edit-profile-btn');
+  const closeBtn = document.getElementById('close-profile-modal-btn');
+  const cancelBtn = document.getElementById('cancel-profile-btn');
+  const form = document.getElementById('student-profile-form');
+
+  const openModal = () => {
+    syncStudentProfileUI();
+    if (modal) modal.classList.add('open');
+  };
+
+  const closeModal = () => {
+    if (modal) modal.classList.remove('open');
+  };
+
+  if (openBtn) openBtn.addEventListener('click', openModal);
+  if (dockLink) dockLink.addEventListener('click', openModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      currentStudent.name = document.getElementById('prof-name').value.trim();
+      currentStudent.roll = document.getElementById('prof-roll').value.trim();
+      currentStudent.email = document.getElementById('prof-email').value.trim();
+      currentStudent.phone = document.getElementById('prof-phone').value.trim();
+      currentStudent.dept = document.getElementById('prof-dept').value.trim();
+      currentStudent.hostel = document.getElementById('prof-hostel').value.trim();
+      currentStudent.parent_name = document.getElementById('prof-parent-name').value.trim();
+      currentStudent.parent_phone = document.getElementById('prof-parent-phone').value.trim();
+
+      try {
+        localStorage.setItem('campuspilot_student_profile', JSON.stringify(currentStudent));
+        await fetch(`${API_BASE}/student/profile`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(currentStudent)
+        });
+      } catch (err) {
+        console.warn('Profile sync:', err);
+      }
+
+      syncStudentProfileUI();
+      closeModal();
+      renderBotMessage(`✅ Student Profile updated! When requesting an Outpass, our AI voice agent will call parent at **${currentStudent.parent_phone}**.`);
+    });
+  }
 }
 
 function populateDrawerBacklog(tickets) {
@@ -673,15 +995,37 @@ async function fetchDrawerData() {
       incContainer.appendChild(item);
     });
 
-    // Populate Simulator Select
+    // Populate Complaint Simulator Select
     const simSelect = document.getElementById('drawer-sim-ticket');
-    simSelect.innerHTML = '';
-    allRequestsList.filter(r => r.status !== 'resolved').forEach(r => {
-      const opt = document.createElement('option');
-      opt.value = r.tracking_id;
-      opt.textContent = `${r.tracking_id} - ${r.title} (${r.status})`;
-      simSelect.appendChild(opt);
-    });
+    if (simSelect) {
+      simSelect.innerHTML = '';
+      allRequestsList.filter(r => r.status !== 'resolved' && r.type !== 'outpass').forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.tracking_id;
+        opt.textContent = `${r.tracking_id} - ${r.title} (${r.status})`;
+        simSelect.appendChild(opt);
+      });
+    }
+
+    // Populate Outpass Simulator Select
+    const outpassSelect = document.getElementById('drawer-sim-outpass-select');
+    if (outpassSelect) {
+      outpassSelect.innerHTML = '';
+      const outpasses = allRequestsList.filter(r => r.type === 'outpass');
+      if (outpasses.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'No active outpass requests yet (Click "Request Outpass" in chat first)';
+        outpassSelect.appendChild(opt);
+      } else {
+        outpasses.forEach(r => {
+          const opt = document.createElement('option');
+          opt.value = r.tracking_id;
+          opt.textContent = `${r.tracking_id} - ${r.student_name} (${r.status})`;
+          outpassSelect.appendChild(opt);
+        });
+      }
+    }
 
     // Populate Audit
     const auditContainer = document.getElementById('drawer-audit-list');
