@@ -115,6 +115,246 @@ app.post('/api/faq/ask', async (req, res) => {
 });
 
 // -----------------------------------------------------------------------------
+// 2b. Unified Conversational Chatbot Engine (Intent Understanding & Action)
+// -----------------------------------------------------------------------------
+app.post('/api/chat/message', async (req, res) => {
+  try {
+    const {
+      message = '',
+      student_name = 'Student',
+      student_email = 'student@hitam.org',
+      student_phone = '+91 9876543210',
+      call_consent = true
+    } = req.body;
+
+    const trimmed = message.trim();
+    if (!trimmed) {
+      return res.status(400).json({ error: 'Message cannot be empty' });
+    }
+
+    const lower = trimmed.toLowerCase();
+
+    // 1. Detect Tracking Intent
+    const trackingRegex = /CP-\d{4}-\d{4}/i;
+    const trackingMatch = trimmed.match(trackingRegex);
+    if (trackingMatch || lower.startsWith('track') || lower.includes('status of')) {
+      const trackingId = trackingMatch ? trackingMatch[0].toUpperCase() : 'CP-2026-1041';
+      const reqRes = await db.query(`
+        SELECT r.*, i.incident_code, i.title as incident_title, u.name as assigned_staff_name
+        FROM requests r
+        LEFT JOIN incidents i ON r.incident_id = i.id
+        LEFT JOIN users u ON r.assigned_staff_id = u.id
+        WHERE r.tracking_id = $1
+      `, [trackingId]);
+
+      if (reqRes.rows.length === 0) {
+        return res.json({
+          intent: 'track_not_found',
+          reply: `I searched for ticket **${trackingId}** but couldn't find any matching record. Please verify the ID format.`,
+          tracking_id: trackingId
+        });
+      }
+
+      const request = reqRes.rows[0];
+      return res.json({
+        intent: 'track',
+        reply: `Here is the current operational status for **${request.tracking_id}**:`,
+        request
+      });
+    }
+
+    // 2. Detect Complaint / Maintenance Intent
+    const complaintKeywords = ['broken', 'leak', 'water', 'tap', 'wifi', 'wi-fi', 'not working', 'repair', 'issue', 'complaint', 'dirty', 'smell', 'light off', 'drain', 'fan not', 'switch'];
+    const isComplaint = complaintKeywords.some(kw => lower.includes(kw)) || lower.startsWith('complaint:');
+
+    // 3. Detect Suggestion Intent
+    const suggestionKeywords = ['suggest', 'recommend', 'improve', 'feedback', 'idea', 'would be great', 'proposal for new', 'request for socket', 'charging point'];
+    const isSuggestion = suggestionKeywords.some(kw => lower.includes(kw)) && !isComplaint;
+
+    // 4. Detect Event Proposal Intent
+    const eventKeywords = ['event', 'hackathon', 'workshop', 'symposium', 'cultural fest', 'organize a', 'club activity', 'guest lecture'];
+    const isEventProposal = eventKeywords.some(kw => lower.includes(kw)) && !isComplaint;
+
+    if (isComplaint) {
+      let category = 'maintenance';
+      let location = 'Campus Facilities';
+      if (lower.includes('hostel') || lower.includes('room')) {
+        category = 'hostel';
+        location = 'Hostel Block 3';
+      } else if (lower.includes('wifi') || lower.includes('internet') || lower.includes('network')) {
+        category = 'it_network';
+        location = 'Campus Wi-Fi Zone';
+      }
+
+      // Check missing details (room/wing)
+      const hasSpecificRoom = /room\s*\d+|room\s*no|washroom\s*\d+|wing\s*[a-z]|floor\s*\d+/i.test(lower);
+      const needsVoice = call_consent && !hasSpecificRoom;
+
+      // Create ticket
+      const countRes = await db.query('SELECT COUNT(*) FROM requests');
+      const seq = parseInt(countRes.rows[0].count, 10) + 1045;
+      const tracking_id = `CP-2026-${seq}`;
+      const dept = determineDepartment(category, 'complaint');
+      const initialStatus = needsVoice ? 'awaiting_details' : 'assigned';
+      const sla_due_at = new Date(Date.now() + 12 * 3600 * 1000);
+
+      // Incident clustering check
+      let incident_id = null;
+      let is_duplicate = false;
+      const clusterCheck = await db.query(`
+        SELECT r.id, r.incident_id FROM requests r
+        WHERE r.category = $1 AND r.status NOT IN ('resolved', 'confirmed')
+          AND r.created_at > NOW() - INTERVAL '12 hours'
+        LIMIT 1
+      `, [category]);
+
+      if (clusterCheck.rows.length > 0) {
+        incident_id = clusterCheck.rows[0].incident_id;
+        is_duplicate = true;
+      }
+
+      const insertRes = await db.query(`
+        INSERT INTO requests (
+          tracking_id, type, category, location, title, description,
+          urgency, status, student_name, student_email, student_phone,
+          call_consent, voice_call_status, assigned_department, incident_id, is_duplicate, sla_due_at
+        ) VALUES ($1, 'complaint', $2, $3, $4, $5, 'high', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        RETURNING *
+      `, [
+        tracking_id, category, location, trimmed, trimmed,
+        initialStatus, student_name, student_email, student_phone,
+        call_consent, needsVoice ? 'pending' : 'none', dept,
+        incident_id, is_duplicate, sla_due_at
+      ]);
+
+      const ticket = insertRes.rows[0];
+      await db.query(`
+        INSERT INTO request_actions (request_id, actor_type, action_type, notes)
+        VALUES ($1, 'student', 'submission', 'Complaint filed conversationally via AI Assistant')
+      `, [ticket.id]);
+
+      // Fire background n8n webhook
+      triggerN8nWebhook('campus-chat', { intent: 'complaint', ticket });
+
+      let reply = `I've logged your complaint under **${ticket.tracking_id}** and routed it to **${dept}**.`;
+      if (needsVoice) {
+        reply += `\n\n📞 **Adaptive Voice Alert:** Specific room or wing details were not detected. Since you consented to phone contact, our AI voice agent will call **${student_phone}** to verify exact location details so maintenance can act immediately.`;
+      }
+      if (incident_id) {
+        reply += `\n\n🧠 **Campus Incident Grouping:** Similar reports have been detected in your block. This complaint has been associated with active incident cluster to ensure coordinated resolution.`;
+      }
+
+      return res.json({
+        intent: 'complaint',
+        reply,
+        ticket,
+        needs_voice: needsVoice,
+        incident_linked: !!incident_id
+      });
+    }
+
+    if (isSuggestion) {
+      const countRes = await db.query('SELECT COUNT(*) FROM requests');
+      const seq = parseInt(countRes.rows[0].count, 10) + 1045;
+      const tracking_id = `CP-2026-${seq}`;
+      const dept = 'Academic Affairs';
+      const sla_due_at = new Date(Date.now() + 24 * 3600 * 1000);
+
+      const insertRes = await db.query(`
+        INSERT INTO requests (
+          tracking_id, type, category, location, title, description,
+          urgency, status, student_name, student_email, student_phone,
+          call_consent, assigned_department, sla_due_at
+        ) VALUES ($1, 'suggestion', 'academics', 'Activity Block / Campus', $2, $3, 'medium', 'assigned', $4, $5, $6, false, $7, $8)
+        RETURNING *
+      `, [tracking_id, trimmed, trimmed, student_name, student_email, student_phone, dept, sla_due_at]);
+
+      const ticket = insertRes.rows[0];
+      await db.query(`
+        INSERT INTO request_actions (request_id, actor_type, action_type, notes)
+        VALUES ($1, 'student', 'submission', 'Campus suggestion filed conversationally via AI Assistant')
+      `, [ticket.id]);
+
+      triggerN8nWebhook('campus-chat', { intent: 'suggestion', ticket });
+
+      return res.json({
+        intent: 'suggestion',
+        reply: `Thank you for the constructive feedback! I've recorded your suggestion under **${ticket.tracking_id}** and routed it to the **${dept}** committee for review.`,
+        ticket
+      });
+    }
+
+    if (isEventProposal) {
+      const countRes = await db.query('SELECT COUNT(*) FROM requests');
+      const seq = parseInt(countRes.rows[0].count, 10) + 1045;
+      const tracking_id = `CP-2026-${seq}`;
+      const dept = 'Student Activities & SSG';
+      const sla_due_at = new Date(Date.now() + 48 * 3600 * 1000);
+
+      const insertRes = await db.query(`
+        INSERT INTO requests (
+          tracking_id, type, category, location, title, description,
+          urgency, status, student_name, student_email, student_phone,
+          call_consent, assigned_department, sla_due_at
+        ) VALUES ($1, 'event_proposal', 'student_activities', 'Main Auditorium / Amphitheater', $2, $3, 'medium', 'awaiting_approval', $4, $5, $6, true, $7, $8)
+        RETURNING *
+      `, [tracking_id, trimmed, trimmed, student_name, student_email, student_phone, dept, sla_due_at]);
+
+      const ticket = insertRes.rows[0];
+      await db.query(`
+        INSERT INTO request_actions (request_id, actor_type, action_type, notes)
+        VALUES ($1, 'student', 'submission', 'Event proposal submitted conversationally via AI Assistant')
+      `, [ticket.id]);
+
+      triggerN8nWebhook('campus-chat', { intent: 'event_proposal', ticket });
+
+      return res.json({
+        intent: 'event_proposal',
+        reply: `Exciting initiative! I've created an official Event Proposal under **${ticket.tracking_id}** and routed it to **${dept}** and the Faculty Advisor for human-in-the-loop review and approval.`,
+        ticket
+      });
+    }
+
+    // Default: Grounded FAQ Lookup
+    const allKb = await db.query('SELECT id, category, question, answer, keywords, source FROM knowledge_base');
+    const queryTokens = lower.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+    let bestMatch = null;
+    let highestMatches = 0;
+
+    for (const item of allKb.rows) {
+      let matches = 0;
+      const combined = (item.question + ' ' + item.answer + ' ' + (item.keywords || []).join(' ')).toLowerCase();
+      queryTokens.forEach(t => {
+        if (combined.includes(t)) matches++;
+      });
+      if (matches > highestMatches) {
+        highestMatches = matches;
+        bestMatch = item;
+      }
+    }
+
+    if (bestMatch && highestMatches >= 1) {
+      return res.json({
+        intent: 'faq',
+        reply: bestMatch.answer,
+        category: bestMatch.category,
+        source: bestMatch.source,
+        confidence: 'high'
+      });
+    }
+
+    return res.json({
+      intent: 'faq_fallback',
+      reply: "I couldn't find an officially verified answer in the HITAM handbook for this query. Rather than guessing, would you like to file this as a **maintenance complaint**, **suggestion**, or **general inquiry**? You can simply type what you need!",
+      confidence: 'low'
+    });
+  } catch (err) {
+    console.error('Chat message processing error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -----------------------------------------------------------------------------
 // 3. Requests Management (Tickets)
 // -----------------------------------------------------------------------------
 

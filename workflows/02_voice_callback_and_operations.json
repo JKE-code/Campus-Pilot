@@ -1,0 +1,191 @@
+{
+  "name": "CampusPilot - 02 Voice Callbacks & Operations Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-callback",
+        "options": {}
+      },
+      "id": "node-voice-webhook",
+      "name": "Webhook: Voice Call Callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 200],
+      "webhookId": "voice-callback"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body || $json;\nconst extracted = payload.extracted_details || {};\nconst trackingId = payload.tracking_id || payload.trackingId;\n\nreturn {\n  trackingId,\n  wing: extracted.wing || 'Wing B',\n  room: extracted.room || 'Room 204',\n  transcript: payload.transcript || 'Clarification call captured successfully.',\n  status: 'assigned'\n};"
+      },
+      "id": "node-parse-voice",
+      "name": "Extract Voice Entities",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/requests/{{ $json.trackingId }}/action",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "action_type", "value": "start_progress" },
+            { "name": "actor_type", "value": "ai_agent" },
+            { "name": "notes", "value": "=Enriched location via Voice Clarification: Wing {{ $json.wing }}, Room {{ $json.room }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-update-voice-db",
+      "name": "Update Ticket with Voice Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "status-transition",
+        "options": {}
+      },
+      "id": "node-status-webhook",
+      "name": "Webhook: Status Transition",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 380],
+      "webhookId": "status-transition"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.newStatus }}",
+              "value2": "resolved"
+            }
+          ]
+        }
+      },
+      "id": "node-check-resolved",
+      "name": "Is Ticket Marked Resolved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, 380]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "closureNotification",
+              "value": "=Student notified to confirm resolution or reopen ticket {{ $json.body.trackingId }}."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-closure-prompt",
+      "name": "Trigger Student Feedback Loop",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [720, 340]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "node-cron-schedule",
+      "name": "Cron: SLA Check Every 15 Min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 560]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5000/api/requests",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "status", "value": "escalated" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-scan-sla",
+      "name": "Scan Overdue & Breached SLAs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 560]
+    }
+  ],
+  "connections": {
+    "Webhook: Voice Call Callback": {
+      "main": [
+        [
+          {
+            "node": "Extract Voice Entities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Voice Entities": {
+      "main": [
+        [
+          {
+            "node": "Update Ticket with Voice Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: Status Transition": {
+      "main": [
+        [
+          {
+            "node": "Is Ticket Marked Resolved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Ticket Marked Resolved?": {
+      "main": [
+        [
+          {
+            "node": "Trigger Student Feedback Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron: SLA Check Every 15 Min": {
+      "main": [
+        [
+          {
+            "node": "Scan Overdue & Breached SLAs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

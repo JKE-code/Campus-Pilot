@@ -1,0 +1,225 @@
+{
+  "name": "CampusPilot - 01 Master Conversational Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "campus-chat",
+        "options": {}
+      },
+      "id": "node-chat-ingress",
+      "name": "Webhook: Ingest Chat & Intent",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 380],
+      "webhookId": "campus-chat"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Intent Detection & Entity Extraction\nconst input = $json.body || $json;\nconst message = (input.message || input.title || '').trim();\nconst lower = message.toLowerCase();\n\nlet intent = input.intent || 'faq';\nlet category = input.category || 'general';\n\n// 1. Detect Tracking Intent\nconst trackMatch = message.match(/CP-\\d{4}-\\d{4}/i);\nif (trackMatch || lower.includes('status of') || lower.includes('track')) {\n  intent = 'track';\n  return {\n    intent,\n    trackingId: trackMatch ? trackMatch[0].toUpperCase() : 'CP-2026-1041',\n    originalMessage: message\n  };\n}\n\n// 2. Detect Complaint / Maintenance Intent\nconst complaintWords = ['broken', 'leak', 'water', 'not working', 'repair', 'issue', 'complaint', 'dirty', 'wifi down', 'tap', 'ac not', 'smell', 'light'];\nif (complaintWords.some(w => lower.includes(w)) || lower.startsWith('complaint:')) {\n  intent = 'complaint';\n  if (lower.includes('water') || lower.includes('tap') || lower.includes('plumb')) category = 'maintenance';\n  else if (lower.includes('wifi') || lower.includes('router') || lower.includes('internet')) category = 'it_network';\n  else if (lower.includes('hostel') || lower.includes('room')) category = 'hostel';\n  else category = 'maintenance';\n}\n// 3. Detect Suggestion Intent\nelse if (lower.includes('suggest') || lower.includes('recommend') || lower.includes('would be great if') || lower.includes('feedback')) {\n  intent = 'suggestion';\n  category = lower.includes('library') ? 'academics' : 'general';\n}\n// 4. Detect Event Proposal Intent\nelse if (lower.includes('event') || lower.includes('hackathon') || lower.includes('proposal') || lower.includes('workshop') || lower.includes('club')) {\n  intent = 'event_proposal';\n  category = 'student_activities';\n}\n// 5. Default: Grounded FAQ / Receptionist Query\nelse {\n  intent = 'faq';\n}\n\n// Check missing details if complaint\nconst hasRoomSpecifics = /room\\s*\\d+|room\\s*no|washroom\\s*\\d+|wing\\s*[a-z]|floor\\s*\\d+/i.test(lower);\nconst needsVoiceClarification = intent === 'complaint' && !hasRoomSpecifics && (input.call_consent !== false);\n\nreturn {\n  intent,\n  category,\n  message,\n  needsVoiceClarification,\n  studentName: input.student_name || 'Student',\n  studentEmail: input.student_email || 'student@hitam.org',\n  studentPhone: input.student_phone || '+91 9876543210',\n  location: input.location || (lower.includes('hostel') ? 'Hostel Block 3' : 'Campus Main Block'),\n  urgency: lower.includes('urgent') || lower.includes('emergency') ? 'high' : 'medium',\n  callConsent: input.call_consent !== false\n};"
+      },
+      "id": "node-intent-classifier",
+      "name": "Classify Intent & Extract Entities",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 380]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.intent }}",
+        "rules": {
+          "rules": [
+            { "value2": "faq", "output": 0 },
+            { "value2": "complaint", "output": 1 },
+            { "value2": "suggestion", "output": 2 },
+            { "value2": "event_proposal", "output": 3 },
+            { "value2": "track", "output": 4 }
+          ]
+        }
+      },
+      "id": "node-intent-switch",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [680, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/faq/ask",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "question", "value": "={{ $json.message }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-faq-handler",
+      "name": "Search Verified FAQ Knowledge",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/requests",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "type", "value": "complaint" },
+            { "name": "category", "value": "={{ $json.category }}" },
+            { "name": "location", "value": "={{ $json.location }}" },
+            { "name": "title", "value": "={{ $json.message }}" },
+            { "name": "description", "value": "={{ $json.message }}" },
+            { "name": "urgency", "value": "={{ $json.urgency }}" },
+            { "name": "student_name", "value": "={{ $json.studentName }}" },
+            { "name": "student_email", "value": "={{ $json.studentEmail }}" },
+            { "name": "student_phone", "value": "={{ $json.studentPhone }}" },
+            { "name": "call_consent", "value": "={{ $json.callConsent }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-create-complaint",
+      "name": "Create Complaint & Check Clusters",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/requests",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "type", "value": "suggestion" },
+            { "name": "category", "value": "={{ $json.category }}" },
+            { "name": "location", "value": "={{ $json.location }}" },
+            { "name": "title", "value": "={{ $json.message }}" },
+            { "name": "description", "value": "={{ $json.message }}" },
+            { "name": "urgency", "value": "medium" },
+            { "name": "student_name", "value": "={{ $json.studentName }}" },
+            { "name": "student_email", "value": "={{ $json.studentEmail }}" },
+            { "name": "student_phone", "value": "={{ $json.studentPhone }}" },
+            { "name": "call_consent", "value": false }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-create-suggestion",
+      "name": "Route Suggestion to Department",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 440]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/requests",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "type", "value": "event_proposal" },
+            { "name": "category", "value": "student_activities" },
+            { "name": "location", "value": "Amphitheater / Main Auditorium" },
+            { "name": "title", "value": "={{ $json.message }}" },
+            { "name": "description", "value": "={{ $json.message }}" },
+            { "name": "urgency", "value": "medium" },
+            { "name": "student_name", "value": "={{ $json.studentName }}" },
+            { "name": "student_email", "value": "={{ $json.studentEmail }}" },
+            { "name": "student_phone", "value": "={{ $json.studentPhone }}" },
+            { "name": "call_consent", "value": true }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-create-event",
+      "name": "Route Proposal to SSG & Faculty",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 580]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5000/api/requests/{{ $json.trackingId }}",
+        "options": {}
+      },
+      "id": "node-fetch-track",
+      "name": "Fetch Live Ticket Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 720]
+    }
+  ],
+  "connections": {
+    "Webhook: Ingest Chat & Intent": {
+      "main": [
+        [
+          {
+            "node": "Classify Intent & Extract Entities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Intent & Extract Entities": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [
+          {
+            "node": "Search Verified FAQ Knowledge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Complaint & Check Clusters",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route Suggestion to Department",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route Proposal to SSG & Faculty",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Live Ticket Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
