@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const db = require('./db');
-
+const gemini = require('./gemini');
 const path = require('path');
 
 const app = express();
@@ -334,9 +334,18 @@ app.post('/api/chat/message', async (req, res) => {
     }
 
     if (bestMatch && highestMatches >= 1) {
+      let replyText = bestMatch.answer;
+      try {
+        // Attempt AI synthesis using Gemini
+        const aiAnswer = await gemini.generateGroundedAnswer(trimmed, [bestMatch]);
+        if (aiAnswer) replyText = aiAnswer;
+      } catch (e) {
+        // Fallback to static handbook text
+      }
+
       return res.json({
         intent: 'faq',
-        reply: bestMatch.answer,
+        reply: replyText,
         category: bestMatch.category,
         source: bestMatch.source,
         confidence: 'high'
