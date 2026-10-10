@@ -5,7 +5,9 @@ const db = require('./db');
 const gemini = require('./gemini');
 const omnidim = require('./omnidimension');
 const mailer = require('./mailer');
+const knowledgeEngine = require('./knowledge_engine');
 const path = require('path');
+
 
 const app = express();
 const PORT = process.env.PORT || process.env.BACKEND_PORT || 5000;
@@ -442,8 +444,20 @@ app.post('/api/chat/message', async (req, res) => {
 
 
     // 6. Fast Grounded FAQ Lookup
+    // Step 0: Direct Instant Lookup in complete_hitam_knowledgebase.md (Handles Dharmendra, faculty, clubs, etc.)
+    const handbookAnswer = knowledgeEngine.searchHandbook(trimmed);
+    if (handbookAnswer) {
+      return res.json({
+        intent: 'faq',
+        reply: handbookAnswer,
+        source: 'HITAM Official Knowledge Base (complete_hitam_knowledgebase.md)',
+        confidence: 'high'
+      });
+    }
+
     // Step A: Instant check across curated database knowledge base for <15ms responses
     const allKb = await db.query('SELECT id, category, question, answer, keywords, source FROM knowledge_base');
+
     const queryTokens = lower.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(t => t.length > 2);
     let bestMatch = null;
     let highestMatches = 0;

@@ -286,10 +286,18 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
               <span class="outpass-stamp">✓ PARENT APPROVED VIA OMNIDIMENSION VOICE</span>
               <span class="pill-badge pill-approved">ACTIVE FOR GATE EXIT</span>
             </div>
+
+            <div style="margin-top: 0.65rem; padding-top: 0.65rem; border-top: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem;">
+              <span style="color: #64748b;">📧 Outpass copy generated for <strong>${t.student_email || currentStudent.email}</strong></span>
+              <button class="btn-cancel" style="padding: 0.25rem 0.65rem; font-size: 0.72rem; border-color: var(--purple-main); color: var(--purple-main); font-weight: 600;" onclick="openEmailPreviewModal('${t.tracking_id}')">
+                🔍 View Email Copy
+              </button>
+            </div>
           </div>
         </div>
       `;
     }
+
 
     if (t.status === 'rejected') {
       return `
@@ -581,21 +589,27 @@ function animateLeftPaneProgression(ticket, data = {}) {
 }
 
 function updateLeftPaneProgress(trackingId, status, estimatedTime, metadata = {}) {
-  document.getElementById('active-track-id').textContent = trackingId;
-  document.getElementById('process-context-line').innerHTML = `Monitoring Request: <strong class="quick-ref">${trackingId}</strong>`;
-  document.getElementById('estimated-solve-time').textContent = estimatedTime || '~3 - 4 Hours';
+  const activeTrack = document.getElementById('active-track-id');
+  if (activeTrack) activeTrack.textContent = trackingId;
+
+  const contextLine = document.getElementById('process-context-line');
+  if (contextLine) contextLine.innerHTML = `Monitoring Request: <strong class="quick-ref">${trackingId}</strong>`;
+
+  const estTime = document.getElementById('estimated-solve-time');
+  if (estTime) estTime.textContent = estimatedTime || '~3 - 4 Hours';
 
   const pill = document.getElementById('current-stage-pill');
-  pill.textContent = status.toUpperCase().replace('_', ' ');
-  pill.className = `pill-badge pill-${status}`;
+  if (pill) {
+    pill.textContent = (status || '').toUpperCase().replace('_', ' ');
+    pill.className = `pill-badge pill-${status}`;
+  }
 
   // Step 1: Autonomous Pipeline Engine Completed
   setStepState('step-n8n', 'completed', 'Autonomous Pipeline Engine', 'Pipeline synchronized');
   
   // Step 2: Intent parsed
-  setStepState('step-intent', 'completed', 'Parsing Intent & Entities', 'Gemini intent classification completed');
+  setStepState('step-intent', 'completed', 'Parsing Intent & Entities', 'Intent classification completed');
 
-  
   // Step 3: Raising request completed
   setStepState('step-raising', 'completed', 'Raising Request', 'Cluster checks completed');
 
@@ -604,15 +618,17 @@ function updateLeftPaneProgress(trackingId, status, estimatedTime, metadata = {}
 
   // Step 5: Voice Clarification
   if (status === 'awaiting_details' || metadata.needs_voice) {
-    setStepState('step-voice', 'running', 'Adaptive Voice Clarification', 'Outbound phone call scheduled to student');
-  } else if (metadata.voice_status === 'completed') {
-    setStepState('step-voice', 'completed', 'Adaptive Voice Clarification', 'Room & Wing verified via phone');
+    setStepState('step-voice', 'running', 'Adaptive Voice Clarification', 'Outbound phone call scheduled');
+  } else if (metadata.voice_status === 'completed' || status === 'approved') {
+    setStepState('step-voice', 'completed', 'Adaptive Voice Clarification', 'Voice authorization verified');
   } else {
-    setStepState('step-voice', 'completed', 'Adaptive Voice Clarification', 'Not required / Details complete');
+    setStepState('step-voice', 'completed', 'Adaptive Voice Clarification', 'Details complete (no call required)');
   }
 
   // Step 6: Solve status
-  if (status === 'in_progress') {
+  if (status === 'approved') {
+    setStepState('step-solve', 'completed', 'Digital Gate Pass Issued', `Gate clearance granted`);
+  } else if (status === 'in_progress') {
     setStepState('step-solve', 'running', 'In Progress / Resolving', 'Maintenance crew dispatched');
   } else if (status === 'resolved' || status === 'confirmed') {
     setStepState('step-solve', 'completed', 'Resolved / Closed', 'Work completed and verified');
@@ -625,9 +641,12 @@ function setStepState(stepId, state, title, desc) {
   const el = document.getElementById(stepId);
   if (!el) return;
   el.className = `live-process-step ${state}`;
-  if (title) el.querySelector('h4').textContent = title;
-  if (desc) el.querySelector('p').textContent = desc;
+  const h4 = el.querySelector('h4');
+  if (h4 && title) h4.textContent = title;
+  const p = el.querySelector('p');
+  if (p && desc) p.textContent = desc;
 }
+
 
 // ---------------------------------------------------------------------------
 // 4. Fetch Requests & Populate Left Stack
@@ -815,11 +834,18 @@ window.simulateParentOutpassDecision = async (trackingId, decision) => {
       body: JSON.stringify({ decision })
     });
 
-    if (res.ok) {
-      const checkRes = await fetch(`${API_BASE}/requests/${trackingId}`);
-      const { request } = await checkRes.json();
+    const result = await res.json();
+    if (!res.ok) {
+      alert(`Simulation failed: ${result.error || 'Server error'}`);
+      return;
+    }
+
+    const checkRes = await fetch(`${API_BASE}/requests/${trackingId}`);
+    if (checkRes.ok) {
+      const data = await checkRes.json();
+      const request = data.request || {};
       const card = document.getElementById(`card-${trackingId}`);
-      if (card && request) {
+      if (card && request.id) {
         card.outerHTML = renderInteractiveTicketCard(request);
       }
 
@@ -829,7 +855,7 @@ window.simulateParentOutpassDecision = async (trackingId, decision) => {
           voice_status: 'completed'
         });
         setStepState('step-voice', 'completed', 'Parent Voice Approved', 'Parent confirmed: "YES / OK"');
-        setStepState('step-solve', 'completed', 'Digital Gate Pass Issued', `Gate Pass: ${request.outpass_code || 'ACTIVE'}`);
+        setStepState('step-solve', 'completed', 'Digital Gate Pass Issued', `Gate Pass: ${request.outpass_code || result.outpass_code || 'ACTIVE'}`);
       } else {
         updateLeftPaneProgress(trackingId, 'rejected', 'Denied', {
           assigned_department: 'Hostel Affairs & Security',
@@ -842,9 +868,53 @@ window.simulateParentOutpassDecision = async (trackingId, decision) => {
       await fetchRequestsAndPopulateLeftPane(trackingId);
     }
   } catch (err) {
+    console.error('simulateParentOutpassDecision error:', err);
     alert('Failed to simulate parent decision: ' + err.message);
   }
 };
+
+window.openEmailPreviewModal = async (trackingId) => {
+  try {
+    const res = await fetch(`${API_BASE}/student/outbox`);
+    const data = await res.json();
+    const mail = (data.outbox || []).find(m => m.trackingId === trackingId && m.status === 'approved') || data.outbox?.[0];
+    
+    if (!mail) {
+      alert('Email copy not found in outbox yet.');
+      return;
+    }
+
+    let modal = document.getElementById('email-preview-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'email-preview-modal';
+      modal.className = 'modal-backdrop';
+      modal.innerHTML = `
+        <div class="modal-card" style="max-width: 680px; max-height: 85vh; display: flex; flex-direction: column;">
+          <div class="modal-header">
+            <h3 style="font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span>📧</span> Student Outpass Email Preview
+            </h3>
+            <button class="pane-close-btn" onclick="document.getElementById('email-preview-modal').classList.remove('active')">&times;</button>
+          </div>
+          <div style="padding: 0.75rem 1.25rem; background: #fffbeb; border-bottom: 1px solid #fef3c7; font-size: 0.78rem; color: #92400e;">
+            <strong>SMTP Status:</strong> Configured for Brevo (<code>smtp-relay.brevo.com:587</code>). To receive directly in your external email inbox, authorize IP <code>154.209.253.10</code> in Brevo Settings &gt; Security &gt; Authorized IPs.
+          </div>
+          <div id="email-preview-content" style="flex: 1; overflow-y: auto; padding: 1rem; background: #f8fafc;"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    const previewContainer = document.getElementById('email-preview-content');
+    previewContainer.innerHTML = mail.html;
+    modal.classList.add('active');
+  } catch (err) {
+    alert('Error fetching email copy: ' + err.message);
+  }
+};
+
+
 
 // ---------------------------------------------------------------------------
 // 6. Student Profile Account Management & Parent Phone Sync
