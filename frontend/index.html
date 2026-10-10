@@ -95,103 +95,108 @@
        ========================================================================= -->
   <div class="app-split-layout">
 
-    <!-- LEFT PANE: LIVE N8N PROCESS & LIFECYCLE MONITOR -->
-    <aside class="process-left-pane">
+    <!-- LEFT PANE: LIVE N8N PROCESS & LIFECYCLE MONITOR (SLIDES IN ON REQUEST) -->
+    <aside class="process-left-pane" id="process-left-pane">
+      <div class="process-left-pane-inner">
 
-      <!-- Active Process Card -->
-      <div class="pane-card" id="process-monitor-card">
-        <div class="pane-card-title">
-          <h3>
-            <span>⚡</span> Process & n8n Monitor
-          </h3>
-          <div class="active-pulse-dot" title="Live Pipeline Active"></div>
+        <!-- Active Process Card -->
+        <div class="pane-card" id="process-monitor-card">
+          <div class="pane-card-title">
+            <h3>
+              <span>⚡</span> Process & n8n Monitor
+            </h3>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <div class="active-pulse-dot" title="Live Pipeline Active"></div>
+              <button class="pane-close-btn" id="close-left-pane-btn" title="Collapse Process Monitor">&times;</button>
+            </div>
+          </div>
+
+          <div style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 0.85rem;" id="process-context-line">
+            Monitoring Request: <strong id="active-track-id" class="quick-ref">—</strong>
+          </div>
+
+          <!-- Live Step-by-Step Progress Stream -->
+          <div class="live-progress-stream">
+            <!-- Step 1: Running n8n -->
+            <div class="live-process-step" id="step-n8n">
+              <div class="step-icon-badge">1</div>
+              <div class="step-details">
+                <h4>Running n8n Workflow</h4>
+                <p id="step-n8n-desc">Waiting for trigger</p>
+              </div>
+            </div>
+
+            <!-- Step 2: Intent & Entities -->
+            <div class="live-process-step" id="step-intent">
+              <div class="step-icon-badge">2</div>
+              <div class="step-details">
+                <h4>Parsing Intent & Entities</h4>
+                <p id="step-intent-desc">Gemini intent classifier</p>
+              </div>
+            </div>
+
+            <!-- Step 3: Raising Request -->
+            <div class="live-process-step" id="step-raising">
+              <div class="step-icon-badge">3</div>
+              <div class="step-details">
+                <h4>Raising Request</h4>
+                <p id="step-raising-desc">Routing & cluster analysis</p>
+              </div>
+            </div>
+
+            <!-- Step 4: Request Raised -->
+            <div class="live-process-step" id="step-raised">
+              <div class="step-icon-badge">4</div>
+              <div class="step-details">
+                <h4>Request Raised</h4>
+                <p id="step-raised-desc">Department dispatch</p>
+              </div>
+            </div>
+
+            <!-- Step 5: Voice Clarification (Conditional) -->
+            <div class="live-process-step" id="step-voice">
+              <div class="step-icon-badge">5</div>
+              <div class="step-details">
+                <h4>Adaptive Voice Clarification</h4>
+                <p id="step-voice-desc">Details verification</p>
+              </div>
+            </div>
+
+            <!-- Step 6: Solve Progress -->
+            <div class="live-process-step" id="step-solve">
+              <div class="step-icon-badge">6</div>
+              <div class="step-details">
+                <h4>In Progress / Resolving</h4>
+                <p id="step-solve-desc">Campus resolution crew</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Estimated Time of Solve Banner -->
+          <div class="sla-highlight-banner">
+            <div>
+              <div class="sla-label">Est. Time of Solve</div>
+              <div class="sla-time-val" id="estimated-solve-time">—</div>
+            </div>
+            <span class="pill-badge pill-submitted" id="current-stage-pill">READY</span>
+          </div>
         </div>
 
-        <div style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 0.85rem;" id="process-context-line">
-          Monitoring Request: <strong id="active-track-id" class="quick-ref">CP-2026-1041</strong>
-        </div>
-
-        <!-- Live Step-by-Step Progress Stream -->
-        <div class="live-progress-stream">
-          <!-- Step 1: Running n8n -->
-          <div class="live-process-step completed" id="step-n8n">
-            <div class="step-icon-badge">1</div>
-            <div class="step-details">
-              <h4>Running n8n Workflow</h4>
-              <p id="step-n8n-desc">01_campuspilot_master_orchestrator triggered</p>
-            </div>
+        <!-- Recent Requests Quick Switcher Card -->
+        <div class="pane-card">
+          <div class="pane-card-title">
+            <h3>
+              <span>📋</span> Active & Recent Requests
+            </h3>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Click to Inspect</span>
           </div>
 
-          <!-- Step 2: Intent & Entities -->
-          <div class="live-process-step completed" id="step-intent">
-            <div class="step-icon-badge">2</div>
-            <div class="step-details">
-              <h4>Parsing Intent & Entities</h4>
-              <p id="step-intent-desc">Gemini 3.8 Flash model classification</p>
-            </div>
-          </div>
-
-          <!-- Step 3: Raising Request -->
-          <div class="live-process-step completed" id="step-raising">
-            <div class="step-icon-badge">3</div>
-            <div class="step-details">
-              <h4>Raising Request</h4>
-              <p id="step-raising-desc">Department routing & incident cluster check</p>
-            </div>
-          </div>
-
-          <!-- Step 4: Request Raised -->
-          <div class="live-process-step completed" id="step-raised">
-            <div class="step-icon-badge">4</div>
-            <div class="step-details">
-              <h4>Request Raised</h4>
-              <p id="step-raised-desc">Assigned to Facilities & Maintenance</p>
-            </div>
-          </div>
-
-          <!-- Step 5: Voice Clarification (Conditional) -->
-          <div class="live-process-step" id="step-voice">
-            <div class="step-icon-badge">5</div>
-            <div class="step-details">
-              <h4>Adaptive Voice Clarification</h4>
-              <p id="step-voice-desc">Details verified & captured</p>
-            </div>
-          </div>
-
-          <!-- Step 6: Solve Progress -->
-          <div class="live-process-step" id="step-solve">
-            <div class="step-icon-badge">6</div>
-            <div class="step-details">
-              <h4>In Progress / Resolving</h4>
-              <p id="step-solve-desc">Technicians dispatched on campus</p>
-            </div>
+          <div class="recent-requests-stack" id="left-recent-requests">
+            <!-- Populated dynamically when requests exist -->
           </div>
         </div>
 
-        <!-- Estimated Time of Solve Banner -->
-        <div class="sla-highlight-banner">
-          <div>
-            <div class="sla-label">Est. Time of Solve</div>
-            <div class="sla-time-val" id="estimated-solve-time">~3 - 4 Hours</div>
-          </div>
-          <span class="pill-badge pill-in_progress" id="current-stage-pill">IN PROGRESS</span>
-        </div>
       </div>
-
-      <!-- Recent Requests Quick Switcher Card -->
-      <div class="pane-card">
-        <div class="pane-card-title">
-          <h3>
-            <span>📋</span> Recent Requests
-          </h3>
-          <span style="font-size: 0.72rem; color: var(--text-muted);">Click to Inspect</span>
-        </div>
-
-        <div class="recent-requests-stack" id="left-recent-requests">
-          <!-- Populated dynamically via app.js -->
-        </div>
-      </div>
-
     </aside>
 
     <!-- RIGHT PANE: MAIN CHATBOT CONVERSATION INTERFACE -->

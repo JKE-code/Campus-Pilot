@@ -1,15 +1,34 @@
 /**
  * CampusPilot AI — Google Gemini API Client
- * Integrated using Gemini 3.8 Flash
+ * Integrated with complete_hitam_knowledgebase.md using Gemini 3.8 Flash
  */
 
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
 
+// Load complete_hitam_knowledgebase.md into memory
+let hitamKnowledgeBaseText = '';
+try {
+  const kbPath = path.resolve(__dirname, '../../complete_hitam_knowledgebase.md');
+  if (fs.existsSync(kbPath)) {
+    hitamKnowledgeBaseText = fs.readFileSync(kbPath, 'utf8');
+    console.log(`[Gemini Knowledge Base] Loaded complete_hitam_knowledgebase.md (${hitamKnowledgeBaseText.length} bytes)`);
+  }
+} catch (err) {
+  console.warn('[Gemini Knowledge Base] Could not load markdown file:', err.message);
+}
+
 async function callGemini(prompt, systemInstruction = '') {
+  if (!GEMINI_API_KEY) {
+    console.warn('[Gemini] No GEMINI_API_KEY provided in .env');
+    return null;
+  }
+
   try {
     const payload = {
       contents: [
@@ -51,12 +70,33 @@ async function callGemini(prompt, systemInstruction = '') {
 }
 
 /**
+ * Answers questions using complete_hitam_knowledgebase.md directly
+ */
+async function answerWithHitamKnowledgeBase(userQuestion) {
+  // If we have the full knowledge base, supply it as grounded authority
+  const systemInstruction = `You are the HITAM Campus Assistant at Hyderabad Institute of Technology and Management.
+You have access to the complete official campus knowledge base below.
+
+RULES:
+1. Grounding: Answer strictly using facts from the provided HITAM Knowledge Base. Never invent policies, names, bus timings, or rules.
+2. Identity: You were built by Sahil Ranakoti (B.Tech CSE Section D) as a personal project. You are NOT Sahil. Refer to him in the third person.
+3. Tone: Warm, helpful, slightly witty, concise (2-4 short sentences max). Never sound like a generic brochure.
+4. If the question cannot be answered from the knowledge base, state honestly: "I don't have that info in the handbook — please check with your department office."
+
+HITAM KNOWLEDGE BASE:
+${hitamKnowledgeBaseText}`;
+
+  const prompt = `Student Question: "${userQuestion}"`;
+  return await callGemini(prompt, systemInstruction);
+}
+
+/**
  * Intelligently extracts intent, category, and missing detail flags using Gemini
  */
 async function analyzeIntentWithGemini(userMessage) {
-  const systemPrompt = `You are the intent parsing engine for CampusPilot AI at HITAM (Hyderabad Institute of Technology and Management).
+  const systemPrompt = `You are the intent parsing engine for CampusPilot AI at HITAM.
 Classify the user utterance into one of the following intents:
-- "faq": general question about college timings, hostel curfew, library, canteen, Wi-Fi, syllabus, or HR24 exam regulations.
+- "faq": general question about college timings, hostel curfew, library, canteen, Wi-Fi, syllabus, buses, or HR24 exam regulations.
 - "complaint": broken equipment, water leak, tap issue, Wi-Fi down, plumbing, hostel facility failure.
 - "suggestion": improvement idea, request for new amenities, curriculum feedback.
 - "event_proposal": request to organize a hackathon, fest, workshop, or student club event.
@@ -85,27 +125,9 @@ Return ONLY valid JSON with no markdown formatting:
   }
 }
 
-/**
- * Generates warm, grounded FAQ answer from knowledge items
- */
-async function generateGroundedAnswer(question, relevantKnowledge) {
-  const systemPrompt = `You are the friendly, witty HITAM Campus Assistant.
-Rules:
-1. Answer strictly using the provided Grounded Knowledge. Do not invent dates, rooms, or policies.
-2. Tone: Warm, helpful, slightly gen-Z, concise (max 3 short sentences).
-3. If the knowledge does not contain the answer, politely tell them to check with the department office.`;
-
-  const prompt = `Grounded Knowledge:
-${JSON.stringify(relevantKnowledge, null, 2)}
-
-Student Question:
-"${question}"`;
-
-  return await callGemini(prompt, systemPrompt);
-}
-
 module.exports = {
   callGemini,
   analyzeIntentWithGemini,
-  generateGroundedAnswer
+  answerWithHitamKnowledgeBase,
+  hitamKnowledgeBaseText
 };

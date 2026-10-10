@@ -164,17 +164,26 @@ app.post('/api/chat/message', async (req, res) => {
       });
     }
 
+    // Check if utterance is primarily an informational question / inquiry
+    const isQuestion = lower.endsWith('?') || 
+      /^(what|who|when|where|why|how|which|can i|is there|is it|are there|do we|tell me|explain|info on|details about)\b/i.test(trimmed);
+
     // 2. Detect Complaint / Maintenance Intent
-    const complaintKeywords = ['broken', 'leak', 'water', 'tap', 'wifi', 'wi-fi', 'not working', 'repair', 'issue', 'complaint', 'dirty', 'smell', 'light off', 'drain', 'fan not', 'switch'];
-    const isComplaint = complaintKeywords.some(kw => lower.includes(kw)) || lower.startsWith('complaint:');
+    const explicitComplaintPrefix = lower.startsWith('complaint:') || lower.startsWith('report:');
+    const complaintSpecificWords = ['broken', 'leak', 'leaking', 'not working', 'repair', 'dirty', 'smell', 'light off', 'drain', 'fan not', 'switch broken', 'no power', 'power cut', 'issue with water', 'tap leaking'];
+    const generalComplaintWords = ['complaint', 'broken', 'repair', 'damage', 'not functional', 'out of order'];
+    
+    const isComplaint = explicitComplaintPrefix || 
+      (!isQuestion && (complaintSpecificWords.some(kw => lower.includes(kw)) || generalComplaintWords.some(kw => lower.includes(kw)))) ||
+      (isQuestion && complaintSpecificWords.some(kw => lower.includes(kw)));
 
     // 3. Detect Suggestion Intent
-    const suggestionKeywords = ['suggest', 'recommend', 'improve', 'feedback', 'idea', 'would be great', 'proposal for new', 'request for socket', 'charging point'];
-    const isSuggestion = suggestionKeywords.some(kw => lower.includes(kw)) && !isComplaint;
+    const suggestionKeywords = ['suggest', 'recommend', 'feedback', 'would be great', 'proposal for new', 'request for socket', 'charging point'];
+    const isSuggestion = !isQuestion && suggestionKeywords.some(kw => lower.includes(kw)) && !isComplaint;
 
     // 4. Detect Event Proposal Intent
-    const eventKeywords = ['event', 'hackathon', 'workshop', 'symposium', 'cultural fest', 'organize a', 'club activity', 'guest lecture'];
-    const isEventProposal = eventKeywords.some(kw => lower.includes(kw)) && !isComplaint;
+    const eventKeywords = ['organize a hackathon', 'conduct a workshop', 'cultural fest proposal', 'organize an event', 'host a symposium'];
+    const isEventProposal = !isQuestion && eventKeywords.some(kw => lower.includes(kw)) && !isComplaint;
 
     if (isComplaint) {
       let category = 'maintenance';
@@ -327,6 +336,22 @@ app.post('/api/chat/message', async (req, res) => {
     }
 
     // Default: Grounded FAQ Lookup
+    // Grounded FAQ Search using complete_hitam_knowledgebase.md with Gemini 3.8 Flash
+    try {
+      const kbAnswer = await gemini.answerWithHitamKnowledgeBase(trimmed);
+      if (kbAnswer && !kbAnswer.toLowerCase().includes("i don't have that info")) {
+        return res.json({
+          intent: 'faq',
+          reply: kbAnswer,
+          source: 'HITAM Official Knowledge Base (complete_hitam_knowledgebase.md)',
+          confidence: 'high'
+        });
+      }
+    } catch (e) {
+      console.warn('Gemini KB lookup fallback:', e.message);
+    }
+
+    // Fallback: search database rows
     const allKb = await db.query('SELECT id, category, question, answer, keywords, source FROM knowledge_base');
     const queryTokens = lower.replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
     let bestMatch = null;
@@ -345,18 +370,9 @@ app.post('/api/chat/message', async (req, res) => {
     }
 
     if (bestMatch && highestMatches >= 1) {
-      let replyText = bestMatch.answer;
-      try {
-        // Attempt AI synthesis using Gemini
-        const aiAnswer = await gemini.generateGroundedAnswer(trimmed, [bestMatch]);
-        if (aiAnswer) replyText = aiAnswer;
-      } catch (e) {
-        // Fallback to static handbook text
-      }
-
       return res.json({
         intent: 'faq',
-        reply: replyText,
+        reply: bestMatch.answer,
         category: bestMatch.category,
         source: bestMatch.source,
         confidence: 'high'

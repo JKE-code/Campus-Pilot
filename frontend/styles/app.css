@@ -1,7 +1,7 @@
 /* ==========================================================================
    CampusPilot AI — Pure White Modern Design System
-   Top Header: Transparent Bar + Distanced Non-Overlapping Hexagons with Left-to-Right Shine Sweep
-   Left Pane: Live n8n Process & Request Lifecycle Monitor
+   Top Header: Transparent Bar + Distanced Non-Overlapping Hexagons with Shine Sweep
+   Layout: Centered Chatbot initially -> Left Pane Slides In & Compresses Chat
    ========================================================================== */
 
 :root {
@@ -92,7 +92,7 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 250px;
+  width: 260px;
   height: 250px;
   background: linear-gradient(
     90deg, 
@@ -215,7 +215,7 @@ header.app-topbar {
 }
 
 /* ==========================================================================
-   2-COLUMN SPLIT LAYOUT (LEFT PANE: LIVE PROCESS / RIGHT PANE: CHAT)
+   DYNAMIC SPLIT LAYOUT (CENTERED CHAT INITIALLY -> SLIDES IN & COMPRESSES)
    ========================================================================== */
 .app-split-layout {
   position: relative;
@@ -224,19 +224,73 @@ header.app-topbar {
   width: 100%;
   margin: 0 auto;
   flex: 1;
-  display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 1.75rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0;
   padding: 1.25rem 2rem 2.5rem 2rem;
+  transition: gap 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* When left pane is active / slid in */
+.app-split-layout.has-active-request {
+  gap: 1.75rem;
 }
 
 /* ==========================================================================
-   LEFT PANE: LIVE PROCESS & N8N ORCHESTRATION MONITOR
+   LEFT PANE: HIDDEN INITIALLY -> SLIDES IN FROM LEFT & COMPRESSES CHATBOT
    ========================================================================== */
 aside.process-left-pane {
+  width: 0;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(-40px);
+  transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+              max-width 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.35s ease,
+              transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.app-split-layout.has-active-request aside.process-left-pane {
+  width: 350px;
+  max-width: 350px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.process-left-pane-inner {
+  width: 350px;
+  min-width: 350px;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+.pane-close-btn {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pane-close-btn:hover {
+  background: #f1f5f9;
+  color: var(--text-primary);
+  border-color: var(--border-medium);
 }
 
 .pane-card {
@@ -385,12 +439,12 @@ aside.process-left-pane {
   color: var(--purple-main);
 }
 
-/* Left Pane: Recent Requests Quick Selector */
+/* Left Pane: Requests Stack */
 .recent-requests-stack {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  max-height: 310px;
+  max-height: 250px;
   overflow-y: auto;
 }
 
@@ -436,12 +490,21 @@ aside.process-left-pane {
 }
 
 /* ==========================================================================
-   RIGHT PANE: CHATBOT INTERFACE
+   CENTERED / COMPRESSED CHATBOT CONTAINER
    ========================================================================== */
 main.chat-center-container {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  max-width: 820px;
+  width: 100%;
+  margin: 0 auto;
+  transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* When split layout is active, chatbot adapts naturally */
+.app-split-layout.has-active-request main.chat-center-container {
+  max-width: 100%;
+  margin: 0;
 }
 
 /* Hero Title */
@@ -952,7 +1015,7 @@ main.chat-center-container {
 
 /* Responsive */
 @media (max-width: 990px) {
-  .app-split-layout {
+  .app-split-layout.has-active-request {
     grid-template-columns: 1fr;
   }
   aside.process-left-pane {

@@ -13,12 +13,13 @@ const currentStudent = {
 };
 
 let allRequestsList = [];
-let activeTrackedTicket = 'CP-2026-1041';
+let activeTrackedTicket = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   setupChatbot();
   setupQuickChips();
   setupDrawer();
+  setupLeftPaneControls();
   checkSystemStatus();
   fetchInitialData();
 });
@@ -41,11 +42,37 @@ async function checkSystemStatus() {
 }
 
 async function fetchInitialData() {
-  await fetchRequestsAndPopulateLeftPane();
-  updateLeftPaneProgress('CP-2026-1041', 'in_progress', '3 - 4 Hours', {
-    assigned_department: 'Facilities & Maintenance',
-    voice_status: 'completed'
-  });
+  // Silent initial data load for operations drawer in background
+  // MAIN VIEW STARTS 100% CENTERED WITH ZERO FALSE/DUMMY REQUEST DATA
+  try {
+    const res = await fetch(`${API_BASE}/requests`);
+    const data = await res.json();
+    allRequestsList = data.requests || [];
+    populateDrawerBacklog(allRequestsList);
+  } catch (err) {
+    console.warn('Initial data prefetch error:', err);
+  }
+}
+
+function openLeftPane() {
+  const layout = document.querySelector('.app-split-layout');
+  if (layout) {
+    layout.classList.add('has-active-request');
+  }
+}
+
+function closeLeftPane() {
+  const layout = document.querySelector('.app-split-layout');
+  if (layout) {
+    layout.classList.remove('has-active-request');
+  }
+}
+
+function setupLeftPaneControls() {
+  const closeBtn = document.getElementById('close-left-pane-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeLeftPane);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -65,10 +92,7 @@ function setupChatbot() {
     renderUserMessage(message);
     input.value = '';
 
-    // 2. Animate Left Pane Step Sequence: Running n8n & raising request
-    animateLeftPaneSubmissionStart();
-
-    // 3. Show Typing Indicator
+    // 2. Show Typing Indicator
     const typingId = renderTypingIndicator();
 
     try {
@@ -88,23 +112,16 @@ function setupChatbot() {
       const data = await res.json();
       removeTypingIndicator(typingId);
 
-      // 4. Render Assistant Response
+      // 3. Render Assistant Response
       renderBotResponse(data);
 
-      // 5. Update Left Pane Process Monitor with the actual raised ticket
+      // 4. If request/ticket action (complaint, suggestion, proposal, or track), slide in left pane & compress chatbot
       const ticket = data.ticket || data.request;
       if (ticket) {
-        activeTrackedTicket = ticket.tracking_id;
-        const estTime = ticket.urgency === 'critical' ? '1 - 2 Hours' : (ticket.urgency === 'high' ? '3 - 4 Hours' : '24 Hours');
-        updateLeftPaneProgress(ticket.tracking_id, ticket.status, estTime, {
-          assigned_department: ticket.assigned_department,
-          voice_status: ticket.voice_call_status,
-          needs_voice: data.needs_voice
-        });
+        openLeftPane();
+        animateLeftPaneProgression(ticket, data);
+        await fetchRequestsAndPopulateLeftPane(ticket.tracking_id);
       }
-
-      // Refresh left list & drawer in background
-      await fetchRequestsAndPopulateLeftPane();
     } catch (err) {
       removeTypingIndicator(typingId);
       renderBotMessage('Unable to reach server. Please ensure the backend is running at http://localhost:5000.');
@@ -352,26 +369,58 @@ window.handleTicketClosure = async (trackingId, actionType) => {
 // ---------------------------------------------------------------------------
 // 3. Left Pane Process Monitor Updates & Animation
 // ---------------------------------------------------------------------------
-function animateLeftPaneSubmissionStart() {
-  document.getElementById('process-context-line').innerHTML = 'Processing: <strong class="quick-ref">Ingesting Utterance...</strong>';
-  
+function animateLeftPaneProgression(ticket, data = {}) {
+  activeTrackedTicket = ticket.tracking_id;
+  const estTime = ticket.urgency === 'critical' ? '1 - 2 Hours' : (ticket.urgency === 'high' ? '3 - 4 Hours' : '24 Hours');
+
+  document.getElementById('active-track-id').textContent = ticket.tracking_id;
+  document.getElementById('process-context-line').innerHTML = `Monitoring Request: <strong class="quick-ref">${ticket.tracking_id}</strong>`;
+  document.getElementById('estimated-solve-time').textContent = estTime;
+
+  const pill = document.getElementById('current-stage-pill');
+  pill.textContent = (ticket.status || 'assigned').toUpperCase().replace('_', ' ');
+  pill.className = `pill-badge pill-${ticket.status || 'assigned'}`;
+
   // Step 1: Running n8n
-  setStepState('step-n8n', 'running', 'Running n8n Workflow', 'Invoking 01_campuspilot_master_orchestrator');
-  setStepState('step-intent', 'pending', 'Parsing Intent & Entities', 'Waiting for n8n trigger');
+  setStepState('step-n8n', 'running', 'Running n8n Workflow', '01_campuspilot_master_orchestrator invoked');
+  setStepState('step-intent', 'pending', 'Parsing Intent & Entities', 'Gemini intent classification queue');
   setStepState('step-raising', 'pending', 'Raising Request', 'Pending evaluation');
   setStepState('step-raised', 'pending', 'Request Raised', 'Pending assignment');
   setStepState('step-voice', 'pending', 'Adaptive Voice Clarification', 'Pending check');
   setStepState('step-solve', 'pending', 'In Progress / Resolving', 'Awaiting crew');
 
   setTimeout(() => {
-    setStepState('step-n8n', 'completed', 'Running n8n Workflow', 'Orchestration workflow active');
-    setStepState('step-intent', 'running', 'Parsing Intent & Entities', 'Gemini 3.8 Flash model analyzing');
-  }, 400);
+    setStepState('step-n8n', 'completed', 'Running n8n Workflow', '01_campuspilot_master_orchestrator executed');
+    setStepState('step-intent', 'running', 'Parsing Intent & Entities', 'Gemini 3.8 Flash model classification');
+  }, 350);
 
   setTimeout(() => {
-    setStepState('step-intent', 'completed', 'Parsing Intent & Entities', 'Entities and category extracted');
-    setStepState('step-raising', 'running', 'Raising Request', 'Checking duplicate incident clusters');
-  }, 900);
+    setStepState('step-intent', 'completed', 'Parsing Intent & Entities', `Classified as ${ticket.type || 'request'} (${ticket.category || 'facilities'})`);
+    setStepState('step-raising', 'running', 'Raising Request', 'Department routing & incident check');
+  }, 750);
+
+  setTimeout(() => {
+    setStepState('step-raising', 'completed', 'Raising Request', data.incident_linked ? 'Linked to active incident cluster' : 'No conflicts; routed directly');
+    setStepState('step-raised', 'completed', 'Request Raised', `Assigned to ${ticket.assigned_department || 'Department'}`);
+
+    // Step 5: Voice Clarification (Conditional)
+    if (ticket.status === 'awaiting_details' || data.needs_voice || ticket.voice_call_status === 'pending') {
+      setStepState('step-voice', 'running', 'Adaptive Voice Clarification', `Outbound call scheduled to ${ticket.student_phone || 'student'}`);
+    } else if (ticket.voice_call_status === 'completed') {
+      setStepState('step-voice', 'completed', 'Adaptive Voice Clarification', 'Room & Wing verified via phone');
+    } else {
+      setStepState('step-voice', 'completed', 'Adaptive Voice Clarification', 'Not required / Details complete');
+    }
+
+    // Step 6: Solve status
+    if (ticket.status === 'in_progress') {
+      setStepState('step-solve', 'running', 'In Progress / Resolving', 'Maintenance crew dispatched');
+    } else if (ticket.status === 'resolved' || ticket.status === 'confirmed') {
+      setStepState('step-solve', 'completed', 'Resolved / Closed', 'Work completed and verified');
+    } else {
+      setStepState('step-solve', 'running', 'Assigned & Queued', `SLA target active (${estTime})`);
+    }
+  }, 1200);
 }
 
 function updateLeftPaneProgress(trackingId, status, estimatedTime, metadata = {}) {
@@ -425,13 +474,18 @@ function setStepState(stepId, state, title, desc) {
 // ---------------------------------------------------------------------------
 // 4. Fetch Requests & Populate Left Stack
 // ---------------------------------------------------------------------------
-async function fetchRequestsAndPopulateLeftPane() {
+async function fetchRequestsAndPopulateLeftPane(selectedId = null) {
   try {
     const res = await fetch(`${API_BASE}/requests`);
     const data = await res.json();
     allRequestsList = data.requests || [];
 
+    if (selectedId) {
+      activeTrackedTicket = selectedId;
+    }
+
     const container = document.getElementById('left-recent-requests');
+    if (!container) return;
     container.innerHTML = '';
 
     allRequestsList.slice(0, 7).forEach(r => {
@@ -460,6 +514,7 @@ function selectTicketForInspection(trackingId) {
   if (!ticket) return;
 
   activeTrackedTicket = trackingId;
+  openLeftPane();
 
   // Highlight active in list
   document.querySelectorAll('.request-quick-item').forEach(el => {
