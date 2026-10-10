@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: campuspilot_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: campuspilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - campuspilot_pgdata:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    networks:
+      - campuspilot_net
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: campuspilot_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_PORT=5678
+      - N8N_HOST=localhost
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Kolkata
+      - TZ=Asia/Kolkata
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false
+    volumes:
+      - campuspilot_n8n_data:/home/node/.n8n
+      - ./workflows:/workflows
+    networks:
+      - campuspilot_net
+    depends_on:
+      - postgres
+
+volumes:
+  campuspilot_pgdata:
+  campuspilot_n8n_data:
+
+networks:
+  campuspilot_net:
+    driver: bridge
