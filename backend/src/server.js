@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 const db = require('./db');
 const gemini = require('./gemini');
+const omnidim = require('./omnidimension');
 const path = require('path');
 
 const app = express();
@@ -232,6 +233,16 @@ app.post('/api/chat/message', async (req, res) => {
         INSERT INTO request_actions (request_id, actor_type, action_type, notes)
         VALUES ($1, 'student', 'submission', 'Complaint filed conversationally via AI Assistant')
       `, [ticket.id]);
+
+      // Dispatch OmniDimension voice call if needed
+      if (needsVoice) {
+        omnidim.placeOutboundVoiceCall(student_phone, ticket.tracking_id, {
+          title: trimmed,
+          category,
+          location,
+          student_name
+        });
+      }
 
       // Fire background n8n webhook
       triggerN8nWebhook('campus-chat', { intent: 'complaint', ticket });
