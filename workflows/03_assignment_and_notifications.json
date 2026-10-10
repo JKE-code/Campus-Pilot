@@ -1,0 +1,77 @@
+{
+  "name": "CampusPilot - 03 Assignment & Notification Matrix",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "assign-notify",
+        "options": {}
+      },
+      "id": "node-webhook-assign",
+      "name": "Webhook: New Request Assigned",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "assign-notify"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\n\nconst deptMap = {\n  'maintenance': 'facilities@hitam.org',\n  'hostel': 'hostel@hitam.org',\n  'it_network': 'itsupport@hitam.org',\n  'academics': 'academics@hitam.org',\n  'event_proposal': 'ssg@hitam.org'\n};\n\nconst coordinatorEmail = deptMap[body.category] || 'facilities@hitam.org';\n\nreturn {\n  trackingId: body.tracking_id,\n  studentName: body.student_name,\n  studentEmail: body.student_email,\n  coordinatorEmail,\n  title: body.title,\n  department: body.assigned_department,\n  urgency: body.urgency,\n  location: body.location\n};"
+      },
+      "id": "node-routing-matrix",
+      "name": "Department Routing Matrix",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "studentEmailBody",
+              "value": "=Dear {{ $json.studentName }},\n\nYour request has been received by CampusPilot AI.\nReference ID: {{ $json.trackingId }}\nAssigned Department: {{ $json.department }}\nUrgency: {{ $json.urgency }}\n\nYou can track real-time progress or confirm resolution anytime on the campus portal."
+            },
+            {
+              "name": "coordinatorEmailBody",
+              "value": "=NEW TASK ASSIGNED:\nTicket: {{ $json.trackingId }}\nTitle: {{ $json.title }}\nLocation: {{ $json.location }}\nUrgency: {{ $json.urgency }}\n\nPlease review and take action in the Campus Operations Workbench."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-format-email",
+      "name": "Format Notifications",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: New Request Assigned": {
+      "main": [
+        [
+          {
+            "node": "Department Routing Matrix",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Department Routing Matrix": {
+      "main": [
+        [
+          {
+            "node": "Format Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

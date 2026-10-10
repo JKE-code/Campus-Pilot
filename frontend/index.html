@@ -6,118 +6,428 @@
   <title>CampusPilot AI — Intelligent Campus Operations & Student Services</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #090d16;
-      --card-bg: rgba(22, 28, 45, 0.7);
-      --border: rgba(255, 255, 255, 0.08);
-      --primary: #4f46e5;
-      --primary-hover: #6366f1;
-      --accent: #06b6d4;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background-color: var(--bg);
-      color: var(--text);
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-      background-image: radial-gradient(circle at 50% 0%, rgba(79, 70, 229, 0.15) 0%, transparent 60%);
-    }
-    .container {
-      max-width: 900px;
-      width: 100%;
-      text-align: center;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.35rem 1rem;
-      border-radius: 9999px;
-      background: rgba(79, 70, 229, 0.15);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      color: #818cf8;
-      font-size: 0.85rem;
-      font-weight: 600;
-      margin-bottom: 1.5rem;
-    }
-    h1 {
-      font-size: 3rem;
-      font-weight: 800;
-      letter-spacing: -0.025em;
-      margin-bottom: 1rem;
-      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    p.subtitle {
-      font-size: 1.25rem;
-      color: var(--text-muted);
-      margin-bottom: 3rem;
-      line-height: 1.6;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 1.5rem;
-    }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 1rem;
-      padding: 2rem;
-      text-align: left;
-      backdrop-filter: blur(12px);
-      transition: all 0.3s ease;
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-    }
-    .card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(99, 102, 241, 0.4);
-      box-shadow: 0 12px 24px -10px rgba(79, 70, 229, 0.25);
-    }
-    .card h3 {
-      font-size: 1.2rem;
-      margin-bottom: 0.5rem;
-      color: #fff;
-    }
-    .card p {
-      font-size: 0.95rem;
-      color: var(--text-muted);
-      line-height: 1.5;
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/app.css" />
 </head>
 <body>
-  <div class="container">
-    <div class="badge">🚀 CampusPilot AI Operations Hub</div>
-    <h1>Intelligent Campus Operations</h1>
-    <p class="subtitle">One campus interface. Connected departments. Accountable outcomes.</p>
-    <div class="grid">
-      <div class="card">
-        <h3>💬 AI Receptionist</h3>
-        <p>Student conversational front door for instant verified FAQ resolution and ticket intake.</p>
+
+  <!-- App Header & Navigation -->
+  <header class="app-header">
+    <a href="#" class="brand">
+      <div class="brand-icon">CP</div>
+      <div class="brand-text">
+        <h1>CampusPilot AI</h1>
+        <span>HITAM Autonomous Operations Desk</span>
       </div>
-      <div class="card">
-        <h3>📋 Staff Workbench</h3>
-        <p>Departmental coordinator task queue, voice call results, and one-click actions.</p>
+    </a>
+
+    <nav class="nav-tabs">
+      <button class="nav-tab-btn active" data-target="student-view">
+        <span>💬</span> Student Hub
+      </button>
+      <button class="nav-tab-btn" data-target="staff-view">
+        <span>📋</span> Staff Workbench
+      </button>
+      <button class="nav-tab-btn" data-target="admin-view">
+        <span>📊</span> Admin Intelligence
+      </button>
+      <button class="nav-tab-btn" data-target="voice-view">
+        <span>📞</span> Voice Simulator
+      </button>
+    </nav>
+
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span id="backend-status-text">Backend Connected</span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="app-container">
+
+    <!-- ================================================================= -->
+    <!-- VIEW 1: STUDENT HUB (Receptionist & Status Tracker) -->
+    <!-- ================================================================= -->
+    <section id="student-view" class="view-section active">
+      <div class="section-header">
+        <div>
+          <h2>Student Services & AI Receptionist</h2>
+          <p>Get instant verified campus information or submit structured service requests.</p>
+        </div>
+        <button class="btn btn-primary" id="open-submit-modal-btn">
+          <span>+</span> Submit Service Request
+        </button>
       </div>
-      <div class="card">
-        <h3>📊 Admin Incident Center</h3>
-        <p>Campus operational intelligence, duplicate complaint clustering, and SLA monitoring.</p>
+
+      <div class="grid-2">
+        <!-- Grounded Conversational AI Receptionist -->
+        <div class="chat-wrapper">
+          <div style="padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 1.1rem;">🤖</span>
+              <strong style="font-size: 0.95rem;">Grounded Campus Assistant</strong>
+            </div>
+            <span class="badge badge-assigned" style="font-size: 0.68rem;">Verified Knowledge Base</span>
+          </div>
+
+          <div class="chat-messages" id="chat-messages-container">
+            <div class="chat-bubble assistant">
+              Hello! I'm the CampusPilot Receptionist for HITAM. You can ask me about hostel rules, library timings, Wi-Fi onboarding, or academic regulations. How can I help you today?
+              <div class="chat-bubble-source">Source: HITAM Handbook 2026</div>
+            </div>
+          </div>
+
+          <!-- Quick FAQ Pills -->
+          <div class="quick-questions">
+            <button class="quick-pill" data-q="What are the hostel gate timings and curfew?">Hostel Curfew</button>
+            <button class="quick-pill" data-q="How do I connect to campus Wi-Fi?">Wi-Fi Access</button>
+            <button class="quick-pill" data-q="What is the passing criteria under HR24 regulations?">HR24 Passing Marks</button>
+            <button class="quick-pill" data-q="Where is the library and how many books can I borrow?">Library Rules</button>
+            <button class="quick-pill" data-q="What are the canteen timings?">Canteen Hours</button>
+          </div>
+
+          <!-- Input Bar -->
+          <form id="chat-form" class="chat-input-bar">
+            <input type="text" id="chat-input" placeholder="Ask a question (e.g. When do college offices open?)..." autocomplete="off" />
+            <button type="submit" class="btn btn-primary btn-sm">Send</button>
+          </form>
+        </div>
+
+        <!-- Reference ID Live Status Tracker -->
+        <div class="tracker-box">
+          <h3 style="font-size: 1.15rem; margin-bottom: 0.5rem;">Track Your Request</h3>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.25rem;">
+            Enter your Reference ID (e.g., <code class="tracking-id">CP-2026-1041</code>) to inspect live progress, voice call details, or confirm resolution.
+          </p>
+
+          <form id="track-form" class="search-input-group">
+            <input type="text" id="track-input" placeholder="CP-2026-XXXX" value="CP-2026-1041" required />
+            <button type="submit" class="btn btn-secondary">Track Status</button>
+          </form>
+
+          <div id="tracker-result" style="display: none;">
+            <!-- Rendered by app.js -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- VIEW 2: STAFF & COORDINATOR WORKBENCH -->
+    <!-- ================================================================= -->
+    <section id="staff-view" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2>Staff Operations Workbench</h2>
+          <p>Review assigned tasks, voice transcripts, and update ticket lifecycle states.</p>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary btn-sm" id="refresh-staff-btn">🔄 Refresh Backlog</button>
+        </div>
+      </div>
+
+      <!-- Filter Controls -->
+      <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between;">
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">DEPARTMENT:</span>
+          <select id="staff-dept-filter" class="form-control" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;">
+            <option value="">All Departments</option>
+            <option value="Facilities & Maintenance">Facilities & Maintenance</option>
+            <option value="Hostel Affairs">Hostel Affairs</option>
+            <option value="IT & Campus Network">IT & Campus Network</option>
+            <option value="Academic Affairs">Academic Affairs</option>
+            <option value="Student Activities & SSG">Student Activities & SSG</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">STATUS:</span>
+          <select id="staff-status-filter" class="form-control" style="width: auto; padding: 0.4rem 0.8rem; font-size: 0.85rem;">
+            <option value="">All Statuses</option>
+            <option value="submitted">Submitted</option>
+            <option value="awaiting_details">Awaiting Details</option>
+            <option value="assigned">Assigned</option>
+            <option value="in_progress">In Progress</option>
+            <option value="awaiting_approval">Awaiting Approval</option>
+            <option value="escalated">Escalated</option>
+            <option value="resolved">Resolved</option>
+            <option value="confirmed">Confirmed</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Tickets Table -->
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Tracking ID</th>
+              <th>Type / Category</th>
+              <th>Title & Location</th>
+              <th>Student</th>
+              <th>Voice Call</th>
+              <th>Urgency</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="staff-tickets-tbody">
+            <!-- Populated via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- VIEW 3: ADMIN INCIDENT INTELLIGENCE & TELEMETRY -->
+    <!-- ================================================================= -->
+    <section id="admin-view" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2>Campus Incident Intelligence & SLA Center</h2>
+          <p>Institutional oversight: duplicate complaint clustering, SLA compliance, and audit logs.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="refresh-admin-btn">🔄 Refresh Telemetry</button>
+      </div>
+
+      <!-- KPI Metrics -->
+      <div class="grid-4" style="margin-bottom: 2rem;">
+        <div class="metric-card">
+          <div class="metric-title">Total Requests</div>
+          <div class="metric-value" id="kpi-total-requests">--</div>
+          <div class="metric-sub">Across all 5 departments</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Active Incidents</div>
+          <div class="metric-value" style="color: var(--warning);" id="kpi-active-incidents">--</div>
+          <div class="metric-sub">Shared clusters detected</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Escalations / Breaches</div>
+          <div class="metric-value" style="color: var(--danger);" id="kpi-escalations">--</div>
+          <div class="metric-sub">SLA deadline exceeded</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Resolved / Confirmed</div>
+          <div class="metric-value" style="color: var(--success);" id="kpi-resolved">--</div>
+          <div class="metric-sub">Accountable outcomes</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Campus Incident Intelligence Clusters -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span>🧠</span> Clustered Operational Incidents
+            </h3>
+            <span class="badge badge-high">Automatic Cluster Detection</span>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.25rem;">
+            When multiple students report the same issue in the same block/facility, CampusPilot groups them into a single incident to prevent redundant work.
+          </p>
+
+          <div id="incidents-container" style="display: flex; flex-direction: column; gap: 1rem;">
+            <!-- Populated via app.js -->
+          </div>
+        </div>
+
+        <!-- Recent Audit Trail Stream -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span>🛡️</span> Immutable System Audit Trail
+            </h3>
+            <span class="badge badge-assigned">Zero Blind Spots</span>
+          </div>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.25rem;">
+            Real-time chronological log of AI triage, voice call captures, staff transitions, and escalations.
+          </p>
+
+          <div id="audit-trail-container" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 440px; overflow-y: auto;">
+            <!-- Populated via app.js -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- VIEW 4: ADAPTIVE VOICE-TO-RESOLUTION SIMULATOR -->
+    <!-- ================================================================= -->
+    <section id="voice-view" class="view-section">
+      <div class="section-header">
+        <div>
+          <h2>Adaptive Voice-to-Resolution Simulator</h2>
+          <p>Test the outbound AI voice clarification and webhook callback pipeline live.</p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;">Voice Dispatch Trigger</h3>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem;">
+            Select a ticket in <code class="badge badge-awaiting_details">awaiting_details</code> state where room or wing specifics are missing. Simulate the outbound call and inspect the enriched payload returned to n8n.
+          </p>
+
+          <form id="voice-simulator-form">
+            <div class="form-group">
+              <label>Target Ticket</label>
+              <select id="sim-ticket-select" class="form-control" required>
+                <!-- Populated via app.js -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Clarified Wing / Block</label>
+              <input type="text" id="sim-wing" class="form-control" value="Wing B" required />
+            </div>
+
+            <div class="form-group">
+              <label>Clarified Room / Washroom</label>
+              <input type="text" id="sim-room" class="form-control" value="Room 204" required />
+            </div>
+
+            <div class="form-group">
+              <label>Student Verbal Clarification</label>
+              <textarea id="sim-response" class="form-control" rows="3">Student clarified that the tap pipe connection under the sink has loosened and water is pooling on the floor.</textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+              📞 Execute Voice Clarification & Process Callback
+            </button>
+          </form>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column;">
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;">Simulated Call Transcript & Webhook Payload</h3>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">
+            Inspect how CampusPilot captures unstructured audio, parses JSON attributes, and updates ticket status.
+          </p>
+
+          <pre id="sim-payload-output" style="flex: 1; background: var(--bg-primary); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: #a5f3fc; overflow-x: auto;">
+// Webhook callback payload will appear here after triggering call...
+{
+  "status": "ready",
+  "engine": "OmniDimension / Voice-Agent Bridge"
+}
+          </pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================================================================= -->
+  <!-- MODAL: SUBMIT NEW REQUEST -->
+  <!-- ================================================================= -->
+  <div id="submit-modal" class="modal-backdrop">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Submit Campus Request</h3>
+        <button class="close-btn" id="close-submit-modal">&times;</button>
+      </div>
+
+      <form id="new-request-form">
+        <div class="form-group">
+          <label>Request Type</label>
+          <select id="req-type" class="form-control" required>
+            <option value="complaint">Maintenance / Facility Complaint</option>
+            <option value="suggestion">Campus Suggestion & Concern</option>
+            <option value="event_proposal">Student Event Proposal</option>
+          </select>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Category</label>
+            <select id="req-category" class="form-control" required>
+              <option value="maintenance">Campus Facilities & Maintenance</option>
+              <option value="hostel">Hostel & Accommodation</option>
+              <option value="it_network">IT Support & Wi-Fi Network</option>
+              <option value="academics">Academic Affairs & Library</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Urgency Level</label>
+            <select id="req-urgency" class="form-control" required>
+              <option value="low">Low (Standard routine)</option>
+              <option value="medium" selected>Medium (Within 24 hrs)</option>
+              <option value="high">High (Needs immediate attention)</option>
+              <option value="critical">Critical (Emergency breakdown)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Location / Venue</label>
+          <input type="text" id="req-location" class="form-control" placeholder="e.g. Hostel Block 3 or Room S19" required />
+          <span style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem; display: block;">
+            Tip: If location is vague, Adaptive Voice agent may call you to clarify specific room details.
+          </span>
+        </div>
+
+        <div class="form-group">
+          <label>Request Title</label>
+          <input type="text" id="req-title" class="form-control" placeholder="Brief summary of the issue or proposal" required />
+        </div>
+
+        <div class="form-group">
+          <label>Detailed Description</label>
+          <textarea id="req-description" class="form-control" rows="3" placeholder="Provide full context, observed issue, or event agenda..." required></textarea>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Your Full Name</label>
+            <input type="text" id="req-name" class="form-control" placeholder="e.g. Sahil Ranakoti" required />
+          </div>
+
+          <div class="form-group">
+            <label>College Email</label>
+            <input type="email" id="req-email" class="form-control" placeholder="rollno@hitam.org" required />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Phone Number (for Voice Clarification)</label>
+          <input type="tel" id="req-phone" class="form-control" placeholder="+91 98765 43210" />
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="req-consent" checked />
+            <span>I consent to receive an automated AI clarification call if essential details are missing from my request.</span>
+          </label>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+          <button type="button" class="btn btn-secondary" id="cancel-submit-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Submit Request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- MODAL: TICKET INSPECTOR & ACTIONS (Staff View) -->
+  <!-- ================================================================= -->
+  <div id="inspector-modal" class="modal-backdrop">
+    <div class="modal-content" style="max-width: 720px;">
+      <div class="modal-header">
+        <div>
+          <span class="tracking-id" id="insp-tracking-id" style="font-size: 1.1rem;">CP-2026-XXXX</span>
+          <h3 id="insp-title" style="margin-top: 0.25rem;">Ticket Details</h3>
+        </div>
+        <button class="close-btn" id="close-inspector-modal">&times;</button>
+      </div>
+
+      <div id="inspector-body">
+        <!-- Rendered by app.js -->
       </div>
     </div>
   </div>
+
+  <script src="scripts/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,77 @@
+{
+  "name": "CampusPilot - 05 SLA Monitoring & Escalation Watchdog",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-cron",
+      "name": "Cron: Run Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5000/api/requests",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "status", "value": "escalated" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-find-overdue",
+      "name": "Query Overdue Tickets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const requests = $json.requests || [];\n\nconst alerts = requests.map(r => ({\n  trackingId: r.tracking_id,\n  title: r.title,\n  department: r.assigned_department,\n  urgency: r.urgency,\n  escalationLevel: r.escalation_level,\n  principalAlert: `URGENT SLA BREACH: Ticket ${r.tracking_id} in ${r.assigned_department} has breached resolution deadline.`\n}));\n\nreturn { overdueCount: alerts.length, alerts };"
+      },
+      "id": "node-format-escalation",
+      "name": "Format Executive Alerts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Cron: Run Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Query Overdue Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Overdue Tickets": {
+      "main": [
+        [
+          {
+            "node": "Format Executive Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
