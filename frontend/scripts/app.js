@@ -1,5 +1,5 @@
 /**
- * CampusPilot AI — Single-Page Chatbot Controller & Operations Drawer
+ * CampusPilot AI — Single-Page Chatbot Controller & Left Process Monitor
  */
 
 const API_BASE = 'http://localhost:5000/api';
@@ -12,16 +12,19 @@ const currentStudent = {
   roll: '24E51A05L3'
 };
 
+let allRequestsList = [];
+let activeTrackedTicket = 'CP-2026-1041';
+
 document.addEventListener('DOMContentLoaded', () => {
   setupChatbot();
   setupQuickChips();
   setupDrawer();
   checkSystemStatus();
-  fetchDrawerData();
+  fetchInitialData();
 });
 
 // ---------------------------------------------------------------------------
-// 1. Health & Status
+// 1. Health & Initial Data
 // ---------------------------------------------------------------------------
 async function checkSystemStatus() {
   const statusEl = document.getElementById('system-status-indicator');
@@ -37,6 +40,14 @@ async function checkSystemStatus() {
   }
 }
 
+async function fetchInitialData() {
+  await fetchRequestsAndPopulateLeftPane();
+  updateLeftPaneProgress('CP-2026-1041', 'in_progress', '3 - 4 Hours', {
+    assigned_department: 'Facilities & Maintenance',
+    voice_status: 'completed'
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 2. Chatbot Core Engine
 // ---------------------------------------------------------------------------
@@ -50,11 +61,14 @@ function setupChatbot() {
     const message = input.value.trim();
     if (!message) return;
 
-    // 1. Render User Message
+    // 1. Render User Message in Chat
     renderUserMessage(message);
     input.value = '';
 
-    // 2. Show Typing Indicator
+    // 2. Animate Left Pane Step Sequence: Running n8n & raising request
+    animateLeftPaneSubmissionStart();
+
+    // 3. Show Typing Indicator
     const typingId = renderTypingIndicator();
 
     try {
@@ -74,11 +88,23 @@ function setupChatbot() {
       const data = await res.json();
       removeTypingIndicator(typingId);
 
-      // 3. Render Assistant Response
+      // 4. Render Assistant Response
       renderBotResponse(data);
 
-      // Refresh drawer data in background
-      fetchDrawerData();
+      // 5. Update Left Pane Process Monitor with the actual raised ticket
+      const ticket = data.ticket || data.request;
+      if (ticket) {
+        activeTrackedTicket = ticket.tracking_id;
+        const estTime = ticket.urgency === 'critical' ? '1 - 2 Hours' : (ticket.urgency === 'high' ? '3 - 4 Hours' : '24 Hours');
+        updateLeftPaneProgress(ticket.tracking_id, ticket.status, estTime, {
+          assigned_department: ticket.assigned_department,
+          voice_status: ticket.voice_call_status,
+          needs_voice: data.needs_voice
+        });
+      }
+
+      // Refresh left list & drawer in background
+      await fetchRequestsAndPopulateLeftPane();
     } catch (err) {
       removeTypingIndicator(typingId);
       renderBotMessage('Unable to reach server. Please ensure the backend is running at http://localhost:5000.');
@@ -131,7 +157,7 @@ function renderTypingIndicator() {
     <div class="chat-avatar bot">🤖</div>
     <div class="chat-bubble-payload">
       <div class="chat-text-card" style="color: var(--text-muted); font-style: italic;">
-        Understanding intent and checking workflows...
+        Understanding intent and running n8n orchestrator...
       </div>
     </div>
   `;
@@ -199,7 +225,7 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
         <span>📞</span>
         <div>
           <strong>Adaptive Voice Clarification Scheduled:</strong>
-          <span>Missing room/wing specifics. Outbound call scheduled to ${t.student_phone || 'student phone'} to clarify before staff dispatch.</span>
+          <span>Missing room/wing specifics. Outbound call scheduled to ${t.student_phone || 'student phone'} to clarify before crew dispatch.</span>
         </div>
       </div>
     `;
@@ -307,14 +333,16 @@ window.handleTicketClosure = async (trackingId, actionType) => {
     });
 
     if (res.ok) {
-      // Re-fetch ticket to refresh card
       const checkRes = await fetch(`${API_BASE}/requests/${trackingId}`);
       const { request } = await checkRes.json();
       const card = document.getElementById(`card-${trackingId}`);
       if (card) {
         card.outerHTML = renderInteractiveTicketCard(request);
       }
-      fetchDrawerData();
+      updateLeftPaneProgress(request.tracking_id, request.status, 'Resolved', {
+        assigned_department: request.assigned_department
+      });
+      fetchRequestsAndPopulateLeftPane();
     }
   } catch (err) {
     alert('Error updating status: ' + err.message);
@@ -322,7 +350,138 @@ window.handleTicketClosure = async (trackingId, actionType) => {
 };
 
 // ---------------------------------------------------------------------------
-// 3. Quick Chips
+// 3. Left Pane Process Monitor Updates & Animation
+// ---------------------------------------------------------------------------
+function animateLeftPaneSubmissionStart() {
+  document.getElementById('process-context-line').innerHTML = 'Processing: <strong class="quick-ref">Ingesting Utterance...</strong>';
+  
+  // Step 1: Running n8n
+  setStepState('step-n8n', 'running', 'Running n8n Workflow', 'Invoking 01_campuspilot_master_orchestrator');
+  setStepState('step-intent', 'pending', 'Parsing Intent & Entities', 'Waiting for n8n trigger');
+  setStepState('step-raising', 'pending', 'Raising Request', 'Pending evaluation');
+  setStepState('step-raised', 'pending', 'Request Raised', 'Pending assignment');
+  setStepState('step-voice', 'pending', 'Adaptive Voice Clarification', 'Pending check');
+  setStepState('step-solve', 'pending', 'In Progress / Resolving', 'Awaiting crew');
+
+  setTimeout(() => {
+    setStepState('step-n8n', 'completed', 'Running n8n Workflow', 'Orchestration workflow active');
+    setStepState('step-intent', 'running', 'Parsing Intent & Entities', 'Gemini 3.8 Flash model analyzing');
+  }, 400);
+
+  setTimeout(() => {
+    setStepState('step-intent', 'completed', 'Parsing Intent & Entities', 'Entities and category extracted');
+    setStepState('step-raising', 'running', 'Raising Request', 'Checking duplicate incident clusters');
+  }, 900);
+}
+
+function updateLeftPaneProgress(trackingId, status, estimatedTime, metadata = {}) {
+  document.getElementById('active-track-id').textContent = trackingId;
+  document.getElementById('process-context-line').innerHTML = `Monitoring Request: <strong class="quick-ref">${trackingId}</strong>`;
+  document.getElementById('estimated-solve-time').textContent = estimatedTime || '~3 - 4 Hours';
+
+  const pill = document.getElementById('current-stage-pill');
+  pill.textContent = status.toUpperCase().replace('_', ' ');
+  pill.className = `pill-badge pill-${status}`;
+
+  // Step 1: n8n Completed
+  setStepState('step-n8n', 'completed', 'Running n8n Workflow', '01_campuspilot_master_orchestrator');
+  
+  // Step 2: Intent parsed
+  setStepState('step-intent', 'completed', 'Parsing Intent & Entities', 'Gemini 3.8 Flash model classification');
+  
+  // Step 3: Raising request completed
+  setStepState('step-raising', 'completed', 'Raising Request', 'Cluster checks completed');
+
+  // Step 4: Request Raised
+  setStepState('step-raised', 'completed', 'Request Raised', `Assigned to ${metadata.assigned_department || 'Department'}`);
+
+  // Step 5: Voice Clarification
+  if (status === 'awaiting_details' || metadata.needs_voice) {
+    setStepState('step-voice', 'running', 'Adaptive Voice Clarification', 'Outbound phone call scheduled to student');
+  } else if (metadata.voice_status === 'completed') {
+    setStepState('step-voice', 'completed', 'Adaptive Voice Clarification', 'Room & Wing verified via phone');
+  } else {
+    setStepState('step-voice', 'completed', 'Adaptive Voice Clarification', 'Not required / Details complete');
+  }
+
+  // Step 6: Solve status
+  if (status === 'in_progress') {
+    setStepState('step-solve', 'running', 'In Progress / Resolving', 'Maintenance crew dispatched');
+  } else if (status === 'resolved' || status === 'confirmed') {
+    setStepState('step-solve', 'completed', 'Resolved / Closed', 'Work completed and verified');
+  } else {
+    setStepState('step-solve', 'pending', 'Awaiting Action', 'Queued in department backlog');
+  }
+}
+
+function setStepState(stepId, state, title, desc) {
+  const el = document.getElementById(stepId);
+  if (!el) return;
+  el.className = `live-process-step ${state}`;
+  if (title) el.querySelector('h4').textContent = title;
+  if (desc) el.querySelector('p').textContent = desc;
+}
+
+// ---------------------------------------------------------------------------
+// 4. Fetch Requests & Populate Left Stack
+// ---------------------------------------------------------------------------
+async function fetchRequestsAndPopulateLeftPane() {
+  try {
+    const res = await fetch(`${API_BASE}/requests`);
+    const data = await res.json();
+    allRequestsList = data.requests || [];
+
+    const container = document.getElementById('left-recent-requests');
+    container.innerHTML = '';
+
+    allRequestsList.slice(0, 7).forEach(r => {
+      const item = document.createElement('div');
+      item.className = `request-quick-item ${r.tracking_id === activeTrackedTicket ? 'active' : ''}`;
+      item.onclick = () => selectTicketForInspection(r.tracking_id);
+      item.innerHTML = `
+        <div class="request-quick-top">
+          <span class="quick-ref">${r.tracking_id}</span>
+          <span class="pill-badge pill-${r.status}" style="font-size: 0.65rem; padding: 0.15rem 0.45rem;">${r.status.replace('_', ' ')}</span>
+        </div>
+        <div class="quick-title">${escapeHtml(r.title)}</div>
+      `;
+      container.appendChild(item);
+    });
+
+    // Populate drawer backlog as well
+    populateDrawerBacklog(allRequestsList);
+  } catch (err) {
+    console.error('Failed to fetch requests list:', err);
+  }
+}
+
+function selectTicketForInspection(trackingId) {
+  const ticket = allRequestsList.find(r => r.tracking_id === trackingId);
+  if (!ticket) return;
+
+  activeTrackedTicket = trackingId;
+
+  // Highlight active in list
+  document.querySelectorAll('.request-quick-item').forEach(el => {
+    el.classList.toggle('active', el.querySelector('.quick-ref')?.textContent === trackingId);
+  });
+
+  // Update left progress monitor
+  const estTime = ticket.urgency === 'critical' ? '1 - 2 Hours' : (ticket.urgency === 'high' ? '3 - 4 Hours' : '24 Hours');
+  updateLeftPaneProgress(ticket.tracking_id, ticket.status, estTime, {
+    assigned_department: ticket.assigned_department,
+    voice_status: ticket.voice_call_status
+  });
+
+  // Post tracking card in chat
+  renderBotResponse({
+    reply: `Switched left process monitor to inspect **${ticket.tracking_id}**:`,
+    request: ticket
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 5. Quick Chips & Drawer
 // ---------------------------------------------------------------------------
 function setupQuickChips() {
   const chips = document.querySelectorAll('.intent-chip');
@@ -340,9 +499,6 @@ function setupQuickChips() {
   });
 }
 
-// ---------------------------------------------------------------------------
-// 4. Slide-Over Operations Drawer (Staff & Admin)
-// ---------------------------------------------------------------------------
 function setupDrawer() {
   const drawer = document.getElementById('operations-drawer');
   const openBtn = document.getElementById('open-drawer-btn');
@@ -374,7 +530,7 @@ function setupDrawer() {
 
   document.getElementById('refresh-backlog-btn').addEventListener('click', fetchDrawerData);
 
-  // Voice Simulator Form inside drawer
+  // Voice Simulator Form
   simForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const trackingId = document.getElementById('drawer-sim-ticket').value;
@@ -403,47 +559,48 @@ function setupDrawer() {
         callback: data
       }, null, 2);
 
-      fetchDrawerData();
+      await fetchRequestsAndPopulateLeftPane();
+      selectTicketForInspection(trackingId);
     } catch (err) {
       out.textContent = 'Error: ' + err.message;
     }
   });
 }
 
+function populateDrawerBacklog(tickets) {
+  const backlogContainer = document.getElementById('drawer-tickets-list');
+  if (!backlogContainer) return;
+  backlogContainer.innerHTML = '';
+  tickets.forEach(t => {
+    const card = document.createElement('div');
+    card.className = 'drawer-ticket-card';
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between;">
+        <span style="font-family: monospace; font-weight: 700; color: var(--purple-main);">${t.tracking_id}</span>
+        <span class="pill-badge pill-${t.status}">${t.status.replace('_', ' ')}</span>
+      </div>
+      <div style="font-size: 0.85rem; font-weight: 600;">${escapeHtml(t.title)}</div>
+      <div style="font-size: 0.75rem; color: var(--text-muted);">${t.assigned_department} &bull; ${t.student_name}</div>
+      <div style="display: flex; gap: 0.4rem; margin-top: 0.35rem;">
+        <button class="intent-chip" style="padding: 0.2rem 0.6rem; font-size: 0.72rem;" onclick="staffAction('${t.tracking_id}', 'start_progress')">Mark In Progress</button>
+        <button class="intent-chip" style="padding: 0.2rem 0.6rem; font-size: 0.72rem; color: var(--green-main);" onclick="staffAction('${t.tracking_id}', 'resolve')">Mark Resolved</button>
+      </div>
+    `;
+    backlogContainer.appendChild(card);
+  });
+}
+
 async function fetchDrawerData() {
   try {
-    const [reqRes, incRes, statsRes] = await Promise.all([
-      fetch(`${API_BASE}/requests`),
+    const [incRes, statsRes] = await Promise.all([
       fetch(`${API_BASE}/incidents`),
       fetch(`${API_BASE}/stats`)
     ]);
 
-    const { requests } = await reqRes.json();
     const { incidents } = await incRes.json();
     const stats = await statsRes.json();
 
-    // 1. Render Backlog
-    const backlogContainer = document.getElementById('drawer-tickets-list');
-    backlogContainer.innerHTML = '';
-    (requests || []).forEach(t => {
-      const card = document.createElement('div');
-      card.className = 'drawer-ticket-card';
-      card.innerHTML = `
-        <div style="display: flex; justify-content: space-between;">
-          <span style="font-family: monospace; font-weight: 700; color: var(--purple-main);">${t.tracking_id}</span>
-          <span class="pill-badge pill-${t.status}">${t.status.replace('_', ' ')}</span>
-        </div>
-        <div style="font-size: 0.85rem; font-weight: 600;">${escapeHtml(t.title)}</div>
-        <div style="font-size: 0.75rem; color: var(--text-muted);">${t.assigned_department} &bull; ${t.student_name}</div>
-        <div style="display: flex; gap: 0.4rem; margin-top: 0.35rem;">
-          <button class="intent-chip" style="padding: 0.2rem 0.6rem; font-size: 0.72rem;" onclick="staffAction('${t.tracking_id}', 'start_progress')">Mark In Progress</button>
-          <button class="intent-chip" style="padding: 0.2rem 0.6rem; font-size: 0.72rem; color: var(--green-main);" onclick="staffAction('${t.tracking_id}', 'resolve')">Mark Resolved</button>
-        </div>
-      `;
-      backlogContainer.appendChild(card);
-    });
-
-    // 2. Render Incidents
+    // Populate Incidents
     const incContainer = document.getElementById('drawer-incidents-list');
     incContainer.innerHTML = '';
     (incidents || []).forEach(inc => {
@@ -461,17 +618,17 @@ async function fetchDrawerData() {
       incContainer.appendChild(item);
     });
 
-    // 3. Populate Simulator Select
+    // Populate Simulator Select
     const simSelect = document.getElementById('drawer-sim-ticket');
     simSelect.innerHTML = '';
-    (requests || []).filter(r => r.status !== 'resolved').forEach(r => {
+    allRequestsList.filter(r => r.status !== 'resolved').forEach(r => {
       const opt = document.createElement('option');
       opt.value = r.tracking_id;
       opt.textContent = `${r.tracking_id} - ${r.title} (${r.status})`;
       simSelect.appendChild(opt);
     });
 
-    // 4. Render Audit
+    // Populate Audit
     const auditContainer = document.getElementById('drawer-audit-list');
     auditContainer.innerHTML = '';
     (stats.recent_activity || []).forEach(a => {
@@ -498,7 +655,8 @@ window.staffAction = async (trackingId, actionType) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action_type: actionType, actor_type: 'coordinator' })
     });
-    fetchDrawerData();
+    await fetchRequestsAndPopulateLeftPane();
+    selectTicketForInspection(trackingId);
   } catch (err) {
     alert('Action failed: ' + err.message);
   }

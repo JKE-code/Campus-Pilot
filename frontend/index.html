@@ -12,108 +12,64 @@
 <body>
 
   <!-- =========================================================================
-       TOP BACKGROUND: FADED WAVE PATTERN WITH GREEN & PURPLE HEXAGONS
+       TOP BACKGROUND: DISTANCED NON-OVERLAPPING HEXAGONS WITH SHINE SWEEP
        ========================================================================= -->
   <div class="hex-wave-header-bg" aria-hidden="true">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 280" preserveAspectRatio="none">
+    <!-- Animated Light Beam Shimmer Sweeping Left to Right -->
+    <div class="hex-shine-sweep"></div>
+
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 240" preserveAspectRatio="none">
       <defs>
-        <!-- Hexagon Definition -->
-        <polygon id="hex" points="26,0 52,15 52,45 26,60 0,45 0,15" />
-        <!-- Vertical fade-to-white mask -->
-        <linearGradient id="fadeMaskGrad" x1="0" y1="0" x2="0" y2="1">
+        <!-- Larger Hexagon Definition (Radius ~44px, Width 76px, Height 88px) -->
+        <!-- Center at (38, 44) -->
+        <polygon id="big-hex" points="38,0 76,22 76,66 38,88 0,66 0,22" />
+
+        <!-- Vertical fade-out mask to pure white -->
+        <linearGradient id="verticalFadeMask" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85" />
-          <stop offset="45%" stop-color="#ffffff" stop-opacity="0.5" />
+          <stop offset="50%" stop-color="#ffffff" stop-opacity="0.45" />
           <stop offset="85%" stop-color="#ffffff" stop-opacity="0.1" />
           <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
         </linearGradient>
-        <mask id="fadeMask">
-          <rect x="0" y="0" width="1440" height="280" fill="url(#fadeMaskGrad)" />
+        <mask id="hexMask">
+          <rect x="0" y="0" width="1440" height="240" fill="url(#verticalFadeMask)" />
         </mask>
       </defs>
 
-      <!-- Undulating Wave of Hexagons in Green (#10b981 / #059669) & Purple (#8b5cf6 / #7c3aed) -->
-      <g mask="url(#fadeMask)">
-        <!-- Wave Row 1 -->
-        <use href="#hex" x="20" y="5" fill="#8b5cf6" opacity="0.32" />
-        <use href="#hex" x="80" y="22" fill="#10b981" opacity="0.28" />
-        <use href="#hex" x="140" y="8" fill="#7c3aed" opacity="0.3" />
-        <use href="#hex" x="200" y="28" fill="#059669" opacity="0.25" />
-        <use href="#hex" x="260" y="12" fill="#8b5cf6" opacity="0.3" />
-        <use href="#hex" x="320" y="32" fill="#10b981" opacity="0.35" />
-        <use href="#hex" x="380" y="16" fill="#a855f7" opacity="0.27" />
-        <use href="#hex" x="440" y="35" fill="#34d399" opacity="0.32" />
-        <use href="#hex" x="500" y="18" fill="#7c3aed" opacity="0.3" />
-        <use href="#hex" x="560" y="38" fill="#10b981" opacity="0.28" />
-        <use href="#hex" x="620" y="20" fill="#8b5cf6" opacity="0.35" />
-        <use href="#hex" x="680" y="42" fill="#059669" opacity="0.3" />
-        <use href="#hex" x="740" y="24" fill="#a855f7" opacity="0.32" />
-        <use href="#hex" x="800" y="45" fill="#10b981" opacity="0.35" />
-        <use href="#hex" x="860" y="25" fill="#7c3aed" opacity="0.28" />
-        <use href="#hex" x="920" y="42" fill="#34d399" opacity="0.3" />
-        <use href="#hex" x="980" y="20" fill="#8b5cf6" opacity="0.32" />
-        <use href="#hex" x="1040" y="38" fill="#059669" opacity="0.28" />
-        <use href="#hex" x="1100" y="16" fill="#a855f7" opacity="0.3" />
-        <use href="#hex" x="1160" y="32" fill="#10b981" opacity="0.35" />
-        <use href="#hex" x="1220" y="12" fill="#7c3aed" opacity="0.28" />
-        <use href="#hex" x="1280" y="28" fill="#34d399" opacity="0.32" />
-        <use href="#hex" x="1340" y="10" fill="#8b5cf6" opacity="0.3" />
-        <use href="#hex" x="1400" y="25" fill="#059669" opacity="0.28" />
+      <!-- Staggered Non-Overlapping Grid (X-Spacing: 120px, Y-Spacing: 100px) -->
+      <g mask="url(#hexMask)">
+        <!-- Row 1: Y = 10 -->
+        <use href="#big-hex" x="40" y="10" fill="#8b5cf6" opacity="0.32" />
+        <use href="#big-hex" x="160" y="10" fill="#10b981" opacity="0.3" />
+        <use href="#big-hex" x="280" y="10" fill="#7c3aed" opacity="0.32" />
+        <use href="#big-hex" x="400" y="10" fill="#059669" opacity="0.28" />
+        <use href="#big-hex" x="520" y="10" fill="#8b5cf6" opacity="0.34" />
+        <use href="#big-hex" x="640" y="10" fill="#10b981" opacity="0.3" />
+        <use href="#big-hex" x="760" y="10" fill="#7c3aed" opacity="0.32" />
+        <use href="#big-hex" x="880" y="10" fill="#059669" opacity="0.28" />
+        <use href="#big-hex" x="1000" y="10" fill="#8b5cf6" opacity="0.34" />
+        <use href="#big-hex" x="1120" y="10" fill="#10b981" opacity="0.3" />
+        <use href="#big-hex" x="1240" y="10" fill="#7c3aed" opacity="0.32" />
+        <use href="#big-hex" x="1360" y="10" fill="#059669" opacity="0.28" />
 
-        <!-- Wave Row 2 -->
-        <use href="#hex" x="-10" y="55" fill="#10b981" opacity="0.22" />
-        <use href="#hex" x="50" y="70" fill="#8b5cf6" opacity="0.26" />
-        <use href="#hex" x="110" y="58" fill="#059669" opacity="0.24" />
-        <use href="#hex" x="170" y="75" fill="#a855f7" opacity="0.22" />
-        <use href="#hex" x="230" y="62" fill="#10b981" opacity="0.28" />
-        <use href="#hex" x="290" y="80" fill="#7c3aed" opacity="0.25" />
-        <use href="#hex" x="350" y="65" fill="#34d399" opacity="0.22" />
-        <use href="#hex" x="410" y="85" fill="#8b5cf6" opacity="0.27" />
-        <use href="#hex" x="470" y="68" fill="#059669" opacity="0.24" />
-        <use href="#hex" x="530" y="88" fill="#a855f7" opacity="0.26" />
-        <use href="#hex" x="590" y="72" fill="#10b981" opacity="0.3" />
-        <use href="#hex" x="650" y="92" fill="#7c3aed" opacity="0.25" />
-        <use href="#hex" x="710" y="75" fill="#34d399" opacity="0.22" />
-        <use href="#hex" x="770" y="94" fill="#8b5cf6" opacity="0.28" />
-        <use href="#hex" x="830" y="76" fill="#059669" opacity="0.25" />
-        <use href="#hex" x="890" y="92" fill="#a855f7" opacity="0.22" />
-        <use href="#hex" x="950" y="70" fill="#10b981" opacity="0.26" />
-        <use href="#hex" x="1010" y="88" fill="#7c3aed" opacity="0.24" />
-        <use href="#hex" x="1070" y="65" fill="#34d399" opacity="0.22" />
-        <use href="#hex" x="1130" y="80" fill="#8b5cf6" opacity="0.25" />
-        <use href="#hex" x="1190" y="60" fill="#059669" opacity="0.28" />
-        <use href="#hex" x="1250" y="75" fill="#a855f7" opacity="0.24" />
-        <use href="#hex" x="1310" y="58" fill="#10b981" opacity="0.26" />
-        <use href="#hex" x="1370" y="72" fill="#7c3aed" opacity="0.22" />
-
-        <!-- Wave Row 3 (Fading soft edge) -->
-        <use href="#hex" x="20" y="115" fill="#a855f7" opacity="0.14" />
-        <use href="#hex" x="80" y="130" fill="#34d399" opacity="0.16" />
-        <use href="#hex" x="140" y="118" fill="#8b5cf6" opacity="0.12" />
-        <use href="#hex" x="200" y="135" fill="#059669" opacity="0.15" />
-        <use href="#hex" x="260" y="122" fill="#7c3aed" opacity="0.14" />
-        <use href="#hex" x="320" y="140" fill="#10b981" opacity="0.16" />
-        <use href="#hex" x="380" y="125" fill="#a855f7" opacity="0.12" />
-        <use href="#hex" x="440" y="145" fill="#34d399" opacity="0.15" />
-        <use href="#hex" x="500" y="128" fill="#8b5cf6" opacity="0.16" />
-        <use href="#hex" x="560" y="148" fill="#059669" opacity="0.14" />
-        <use href="#hex" x="620" y="132" fill="#7c3aed" opacity="0.15" />
-        <use href="#hex" x="680" y="152" fill="#10b981" opacity="0.18" />
-        <use href="#hex" x="740" y="135" fill="#a855f7" opacity="0.14" />
-        <use href="#hex" x="800" y="154" fill="#34d399" opacity="0.15" />
-        <use href="#hex" x="860" y="136" fill="#8b5cf6" opacity="0.12" />
-        <use href="#hex" x="920" y="152" fill="#059669" opacity="0.14" />
-        <use href="#hex" x="980" y="130" fill="#7c3aed" opacity="0.15" />
-        <use href="#hex" x="1040" y="148" fill="#10b981" opacity="0.14" />
-        <use href="#hex" x="1100" y="125" fill="#a855f7" opacity="0.12" />
-        <use href="#hex" x="1160" y="140" fill="#34d399" opacity="0.15" />
-        <use href="#hex" x="1220" y="120" fill="#8b5cf6" opacity="0.14" />
-        <use href="#hex" x="1280" y="135" fill="#059669" opacity="0.12" />
-        <use href="#hex" x="1340" y="118" fill="#7c3aed" opacity="0.15" />
+        <!-- Row 2: Y = 110 (Offset X by 60px to interlock cleanly without touching) -->
+        <use href="#big-hex" x="-20" y="110" fill="#059669" opacity="0.22" />
+        <use href="#big-hex" x="100" y="110" fill="#7c3aed" opacity="0.24" />
+        <use href="#big-hex" x="220" y="110" fill="#10b981" opacity="0.22" />
+        <use href="#big-hex" x="340" y="110" fill="#8b5cf6" opacity="0.25" />
+        <use href="#big-hex" x="460" y="110" fill="#059669" opacity="0.22" />
+        <use href="#big-hex" x="580" y="110" fill="#7c3aed" opacity="0.25" />
+        <use href="#big-hex" x="700" y="110" fill="#10b981" opacity="0.22" />
+        <use href="#big-hex" x="820" y="110" fill="#8b5cf6" opacity="0.25" />
+        <use href="#big-hex" x="940" y="110" fill="#059669" opacity="0.22" />
+        <use href="#big-hex" x="1060" y="110" fill="#7c3aed" opacity="0.25" />
+        <use href="#big-hex" x="1180" y="110" fill="#10b981" opacity="0.22" />
+        <use href="#big-hex" x="1300" y="110" fill="#8b5cf6" opacity="0.24" />
       </g>
     </svg>
   </div>
 
-  <!-- Header Bar -->
+  <!-- Transparent Menu Bar -->
   <header class="app-topbar">
     <a href="#" class="brand-wrapper">
       <div class="brand-badge">CP</div>
@@ -135,93 +91,196 @@
   </header>
 
   <!-- =========================================================================
-       MAIN CHATBOT CONVERSATION INTERFACE
+       2-COLUMN SPLIT LAYOUT (LEFT: LIVE PROCESS PANE / RIGHT: CONVERSATION)
        ========================================================================= -->
-  <main class="chat-center-container">
+  <div class="app-split-layout">
 
-    <!-- Hero Title -->
-    <div class="chat-hero">
-      <div class="chat-hero-pill">
-        <span>✨</span> Single Conversational Interface
-      </div>
-      <h2>How can I assist you today?</h2>
-      <p>I understand campus intent automatically: ask questions, report maintenance issues, submit suggestions, or track existing tickets.</p>
-    </div>
+    <!-- LEFT PANE: LIVE N8N PROCESS & LIFECYCLE MONITOR -->
+    <aside class="process-left-pane">
 
-    <!-- Quick Prompt Chips -->
-    <div class="quick-intent-chips">
-      <button class="intent-chip" data-msg="The water tap in hostel 3 is leaking badly">
-        <span>🚰</span> Report hostel tap leak
-      </button>
-      <button class="intent-chip" data-msg="I suggest we add more charging sockets in the 2nd floor library">
-        <span>💡</span> Suggest library charging points
-      </button>
-      <button class="intent-chip" data-msg="We want to organize a 24hr AI Hackathon in the auditorium next month">
-        <span>🎪</span> Propose club hackathon
-      </button>
-      <button class="intent-chip" data-msg="What are the hostel gate timings and curfew?">
-        <span>🚪</span> Hostel curfew timing
-      </button>
-      <button class="intent-chip" data-msg="What is the passing criteria under HR24 regulations?">
-        <span>📊</span> HR24 passing marks
-      </button>
-      <button class="intent-chip" data-msg="Check status of CP-2026-1041">
-        <span>🔍</span> Track CP-2026-1041
-      </button>
-    </div>
+      <!-- Active Process Card -->
+      <div class="pane-card" id="process-monitor-card">
+        <div class="pane-card-title">
+          <h3>
+            <span>⚡</span> Process & n8n Monitor
+          </h3>
+          <div class="active-pulse-dot" title="Live Pipeline Active"></div>
+        </div>
 
-    <!-- Live Conversation Thread -->
-    <div class="chat-conversation-thread" id="chat-thread">
-      <!-- Default Bot Greeting -->
-      <div class="chat-message-row bot">
-        <div class="chat-avatar bot">🤖</div>
-        <div class="chat-bubble-payload">
-          <div class="chat-text-card">
-            Hello! I'm your <strong>CampusPilot</strong> assistant for HITAM.
-            <br><br>
-            You don't need to navigate complex forms — just tell me what's on your mind:
-            <ul style="margin-left: 1.25rem; margin-top: 0.5rem; font-size: 0.88rem;">
-              <li><strong>Ask questions</strong> about hostel rules, library timings, Wi-Fi, or exam regulations.</li>
-              <li><strong>Report broken facilities</strong> like plumbing, Wi-Fi, or electricity.</li>
-              <li><strong>Suggest improvements</strong> or propose club events.</li>
-              <li><strong>Track existing tickets</strong> by entering your reference ID (e.g. <code>CP-2026-1041</code>).</li>
-            </ul>
+        <div style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 0.85rem;" id="process-context-line">
+          Monitoring Request: <strong id="active-track-id" class="quick-ref">CP-2026-1041</strong>
+        </div>
+
+        <!-- Live Step-by-Step Progress Stream -->
+        <div class="live-progress-stream">
+          <!-- Step 1: Running n8n -->
+          <div class="live-process-step completed" id="step-n8n">
+            <div class="step-icon-badge">1</div>
+            <div class="step-details">
+              <h4>Running n8n Workflow</h4>
+              <p id="step-n8n-desc">01_campuspilot_master_orchestrator triggered</p>
+            </div>
           </div>
-          <div class="chat-source-tag">
-            <span>📖</span> Grounded with HITAM Student Handbook 2026
+
+          <!-- Step 2: Intent & Entities -->
+          <div class="live-process-step completed" id="step-intent">
+            <div class="step-icon-badge">2</div>
+            <div class="step-details">
+              <h4>Parsing Intent & Entities</h4>
+              <p id="step-intent-desc">Gemini 3.8 Flash model classification</p>
+            </div>
+          </div>
+
+          <!-- Step 3: Raising Request -->
+          <div class="live-process-step completed" id="step-raising">
+            <div class="step-icon-badge">3</div>
+            <div class="step-details">
+              <h4>Raising Request</h4>
+              <p id="step-raising-desc">Department routing & incident cluster check</p>
+            </div>
+          </div>
+
+          <!-- Step 4: Request Raised -->
+          <div class="live-process-step completed" id="step-raised">
+            <div class="step-icon-badge">4</div>
+            <div class="step-details">
+              <h4>Request Raised</h4>
+              <p id="step-raised-desc">Assigned to Facilities & Maintenance</p>
+            </div>
+          </div>
+
+          <!-- Step 5: Voice Clarification (Conditional) -->
+          <div class="live-process-step" id="step-voice">
+            <div class="step-icon-badge">5</div>
+            <div class="step-details">
+              <h4>Adaptive Voice Clarification</h4>
+              <p id="step-voice-desc">Details verified & captured</p>
+            </div>
+          </div>
+
+          <!-- Step 6: Solve Progress -->
+          <div class="live-process-step" id="step-solve">
+            <div class="step-icon-badge">6</div>
+            <div class="step-details">
+              <h4>In Progress / Resolving</h4>
+              <p id="step-solve-desc">Technicians dispatched on campus</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Estimated Time of Solve Banner -->
+        <div class="sla-highlight-banner">
+          <div>
+            <div class="sla-label">Est. Time of Solve</div>
+            <div class="sla-time-val" id="estimated-solve-time">~3 - 4 Hours</div>
+          </div>
+          <span class="pill-badge pill-in_progress" id="current-stage-pill">IN PROGRESS</span>
+        </div>
+      </div>
+
+      <!-- Recent Requests Quick Switcher Card -->
+      <div class="pane-card">
+        <div class="pane-card-title">
+          <h3>
+            <span>📋</span> Recent Requests
+          </h3>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Click to Inspect</span>
+        </div>
+
+        <div class="recent-requests-stack" id="left-recent-requests">
+          <!-- Populated dynamically via app.js -->
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- RIGHT PANE: MAIN CHATBOT CONVERSATION INTERFACE -->
+    <main class="chat-center-container">
+
+      <!-- Hero Title -->
+      <div class="chat-hero">
+        <div class="chat-hero-pill">
+          <span>✨</span> Single Conversational Interface
+        </div>
+        <h2>How can I assist you today?</h2>
+        <p>I understand campus intent automatically: ask questions, report maintenance issues, submit suggestions, or track existing tickets.</p>
+      </div>
+
+      <!-- Quick Prompt Chips -->
+      <div class="quick-intent-chips">
+        <button class="intent-chip" data-msg="The water tap in hostel 3 is leaking badly">
+          <span>🚰</span> Report hostel tap leak
+        </button>
+        <button class="intent-chip" data-msg="I suggest we add more charging sockets in the 2nd floor library">
+          <span>💡</span> Suggest library charging points
+        </button>
+        <button class="intent-chip" data-msg="We want to organize a 24hr AI Hackathon in the auditorium next month">
+          <span>🎪</span> Propose club hackathon
+        </button>
+        <button class="intent-chip" data-msg="What are the hostel gate timings and curfew?">
+          <span>🚪</span> Hostel curfew timing
+        </button>
+        <button class="intent-chip" data-msg="What is the passing criteria under HR24 regulations?">
+          <span>📊</span> HR24 passing marks
+        </button>
+        <button class="intent-chip" data-msg="Check status of CP-2026-1041">
+          <span>🔍</span> Track CP-2026-1041
+        </button>
+      </div>
+
+      <!-- Live Conversation Thread -->
+      <div class="chat-conversation-thread" id="chat-thread">
+        <!-- Default Bot Greeting -->
+        <div class="chat-message-row bot">
+          <div class="chat-avatar bot">🤖</div>
+          <div class="chat-bubble-payload">
+            <div class="chat-text-card">
+              Hello! I'm your <strong>CampusPilot</strong> assistant for HITAM.
+              <br><br>
+              You don't need to navigate complex forms — just tell me what's on your mind:
+              <ul style="margin-left: 1.25rem; margin-top: 0.5rem; font-size: 0.88rem;">
+                <li><strong>Ask questions</strong> about hostel rules, library timings, Wi-Fi, or exam regulations.</li>
+                <li><strong>Report broken facilities</strong> like plumbing, Wi-Fi, or electricity.</li>
+                <li><strong>Suggest improvements</strong> or propose club events.</li>
+                <li><strong>Track existing tickets</strong> by typing your reference ID (e.g. <code>CP-2026-1041</code>).</li>
+              </ul>
+            </div>
+            <div class="chat-source-tag">
+              <span>📖</span> Grounded with HITAM Student Handbook 2026 & Gemini 3.8 Flash
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Input Dock -->
-    <div class="chat-dock">
-      <form id="chat-submit-form">
-        <div class="chat-input-controls-row">
-          <input 
-            type="text" 
-            id="user-chat-input" 
-            class="chat-text-input" 
-            placeholder="Type anything (e.g. 'Hostel 3 tap leaking' or 'When is curfew?')..." 
-            autocomplete="off" 
-            required 
-          />
-          <button type="submit" class="btn-send-message">
-            <span>Send</span> ➔
-          </button>
-        </div>
+      <!-- Input Dock -->
+      <div class="chat-dock">
+        <form id="chat-submit-form">
+          <div class="chat-input-controls-row">
+            <input 
+              type="text" 
+              id="user-chat-input" 
+              class="chat-text-input" 
+              placeholder="Type anything (e.g. 'Hostel 3 tap leaking' or 'When is curfew?')..." 
+              autocomplete="off" 
+              required 
+            />
+            <button type="submit" class="btn-send-message">
+              <span>Send</span> ➔
+            </button>
+          </div>
 
-        <div class="chat-subdock">
-          <label class="consent-toggle-label">
-            <input type="checkbox" id="voice-consent-checkbox" checked />
-            <span>📞 AI Voice Clarification Consent (allow outbound phone calls for vague complaints)</span>
-          </label>
-          <span style="color: var(--text-muted); font-size: 0.72rem;">Student: Sahil Ranakoti (24E51A05L3)</span>
-        </div>
-      </form>
-    </div>
+          <div class="chat-subdock">
+            <label class="consent-toggle-label">
+              <input type="checkbox" id="voice-consent-checkbox" checked />
+              <span>📞 AI Voice Clarification Consent (allow outbound phone calls for vague complaints)</span>
+            </label>
+            <span style="color: var(--text-muted); font-size: 0.72rem;">Student: Sahil Ranakoti (24E51A05L3)</span>
+          </div>
+        </form>
+      </div>
 
-  </main>
+    </main>
+  </div>
 
   <!-- =========================================================================
        OPERATIONS SLIDE-OVER DRAWER (COORDINATORS & ADMINISTRATORS)

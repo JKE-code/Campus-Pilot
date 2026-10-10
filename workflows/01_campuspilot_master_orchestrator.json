@@ -11,7 +11,7 @@
       "name": "Webhook: Ingest Chat & Intent",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 380],
+      "position": [180, 420],
       "webhookId": "campus-chat"
     },
     {
@@ -22,7 +22,7 @@
       "name": "Classify Intent & Extract Entities",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 380]
+      "position": [400, 420]
     },
     {
       "parameters": {
@@ -42,118 +42,57 @@
       "name": "Route by Intent",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 2,
-      "position": [680, 380]
+      "position": [640, 420]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://localhost:5000/api/faq/ask",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            { "name": "question", "value": "={{ $json.message }}" }
-          ]
-        },
-        "options": {}
+        "jsCode": "// Dummy Operational Data for FAQ Route\nconst q = $json.message || 'Campus inquiry';\nreturn {\n  n8n_execution: 'completed',\n  route_matched: 'faq',\n  intent: 'receptionist_faq',\n  query: q,\n  answer: 'Hostel gate closes strictly at 6:30 PM for all residents. Outpass must be applied via the portal at least 6 hours in advance with parent consent. Biometric attendance recorded at 8:30 PM daily.',\n  source: 'HITAM Student Handbook 2026',\n  confidence: 'high',\n  status: 'answered_instantly'\n};"
       },
-      "id": "node-faq-handler",
-      "name": "Search Verified FAQ Knowledge",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [960, 160]
+      "id": "node-dummy-faq",
+      "name": "Route 1: FAQ Dummy Data & Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 160]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://localhost:5000/api/requests",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            { "name": "type", "value": "complaint" },
-            { "name": "category", "value": "={{ $json.category }}" },
-            { "name": "location", "value": "={{ $json.location }}" },
-            { "name": "title", "value": "={{ $json.message }}" },
-            { "name": "description", "value": "={{ $json.message }}" },
-            { "name": "urgency", "value": "={{ $json.urgency }}" },
-            { "name": "student_name", "value": "={{ $json.studentName }}" },
-            { "name": "student_email", "value": "={{ $json.studentEmail }}" },
-            { "name": "student_phone", "value": "={{ $json.studentPhone }}" },
-            { "name": "call_consent", "value": "={{ $json.callConsent }}" }
-          ]
-        },
-        "options": {}
+        "jsCode": "// Dummy Operational Data for Complaint Route\nconst trackingId = 'CP-2026-' + Math.floor(1040 + Math.random() * 50);\nreturn {\n  n8n_execution: 'completed',\n  route_matched: 'complaint',\n  tracking_id: trackingId,\n  title: $json.message || 'Water leakage reported in washroom',\n  category: $json.category || 'maintenance',\n  location: $json.location || 'Hostel Block 3',\n  assigned_department: 'Facilities & Maintenance',\n  assigned_crew: 'Plumbing Emergency Unit 1',\n  urgency: 'high',\n  status: $json.needsVoiceClarification ? 'awaiting_details' : 'assigned',\n  voice_clarification_queued: $json.needsVoiceClarification,\n  voice_agent_notes: 'Missing wing/room. Outbound call scheduled to student.',\n  estimated_time_of_solve: '3 - 4 hours',\n  incident_cluster: 'Linked to INC-2026-001 (Shared Hostel 3 Outage)'\n};"
       },
-      "id": "node-create-complaint",
-      "name": "Create Complaint & Check Clusters",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [960, 300]
+      "id": "node-dummy-complaint",
+      "name": "Route 2: Complaint Dummy Data & SLA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://localhost:5000/api/requests",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            { "name": "type", "value": "suggestion" },
-            { "name": "category", "value": "={{ $json.category }}" },
-            { "name": "location", "value": "={{ $json.location }}" },
-            { "name": "title", "value": "={{ $json.message }}" },
-            { "name": "description", "value": "={{ $json.message }}" },
-            { "name": "urgency", "value": "medium" },
-            { "name": "student_name", "value": "={{ $json.studentName }}" },
-            { "name": "student_email", "value": "={{ $json.studentEmail }}" },
-            { "name": "student_phone", "value": "={{ $json.studentPhone }}" },
-            { "name": "call_consent", "value": false }
-          ]
-        },
-        "options": {}
+        "jsCode": "// Dummy Operational Data for Suggestion Route\nconst trackingId = 'CP-2026-' + Math.floor(1050 + Math.random() * 50);\nreturn {\n  n8n_execution: 'completed',\n  route_matched: 'suggestion',\n  tracking_id: trackingId,\n  suggestion: $json.message || 'Request for additional laptop charging sockets in library',\n  category: 'academics',\n  assigned_department: 'Academic Affairs & Library Committee',\n  reviewer: 'Dr. B. Surendra Reddy (Dean Academics)',\n  status: 'assigned',\n  estimated_time_of_solve: '24 - 48 hours',\n  review_action: 'Placed on weekly academic committee agenda'\n};"
       },
-      "id": "node-create-suggestion",
-      "name": "Route Suggestion to Department",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [960, 440]
+      "id": "node-dummy-suggestion",
+      "name": "Route 3: Suggestion Dummy Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 440]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://localhost:5000/api/requests",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            { "name": "type", "value": "event_proposal" },
-            { "name": "category", "value": "student_activities" },
-            { "name": "location", "value": "Amphitheater / Main Auditorium" },
-            { "name": "title", "value": "={{ $json.message }}" },
-            { "name": "description", "value": "={{ $json.message }}" },
-            { "name": "urgency", "value": "medium" },
-            { "name": "student_name", "value": "={{ $json.studentName }}" },
-            { "name": "student_email", "value": "={{ $json.studentEmail }}" },
-            { "name": "student_phone", "value": "={{ $json.studentPhone }}" },
-            { "name": "call_consent", "value": true }
-          ]
-        },
-        "options": {}
+        "jsCode": "// Dummy Operational Data for Event Proposal Route\nconst trackingId = 'CP-2026-' + Math.floor(1060 + Math.random() * 50);\nreturn {\n  n8n_execution: 'completed',\n  route_matched: 'event_proposal',\n  tracking_id: trackingId,\n  event_title: $json.message || 'HITAM 24hr AI Hackathon 2026',\n  venue: 'Main Auditorium / Amphitheater',\n  assigned_department: 'Student Activities & SSG',\n  faculty_approver: 'Dr. Arvind S (Principal) & SSG Advisor',\n  status: 'awaiting_approval',\n  estimated_time_of_solve: '48 hours (Faculty Signoff)',\n  budget_tier: 'Student Senate Sanctioned'\n};"
       },
-      "id": "node-create-event",
-      "name": "Route Proposal to SSG & Faculty",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [960, 580]
+      "id": "node-dummy-event",
+      "name": "Route 4: Event Proposal Dummy Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 580]
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "http://localhost:5000/api/requests/{{ $json.trackingId }}",
-        "options": {}
+        "jsCode": "// Dummy Operational Data for Live Ticket Tracking\nconst tid = $json.trackingId || 'CP-2026-1041';\nreturn {\n  n8n_execution: 'completed',\n  route_matched: 'track',\n  tracking_id: tid,\n  title: 'Hostel 3 plumbing maintenance',\n  department: 'Facilities & Maintenance',\n  status: 'in_progress',\n  estimated_time_of_solve: '1 hour 45 minutes remaining',\n  steps_completed: [\n    { step: 'running_n8n', status: 'done', label: 'Running n8n Orchestrator' },\n    { step: 'raising_request', status: 'done', label: 'Raising Request' },\n    { step: 'request_raised', status: 'done', label: 'Request Raised: ' + tid },\n    { step: 'in_progress', status: 'active', label: 'Crew Dispatched & Fixing' },\n    { step: 'estimated_solve', status: 'pending', label: 'Estimated Solve: ~2 hrs' }\n  ]\n};"
       },
-      "id": "node-fetch-track",
-      "name": "Fetch Live Ticket Status",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [960, 720]
+      "id": "node-dummy-track",
+      "name": "Route 5: Track Dummy Data & Steps",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 720]
     }
   ],
   "connections": {
@@ -183,35 +122,35 @@
       "main": [
         [
           {
-            "node": "Search Verified FAQ Knowledge",
+            "node": "Route 1: FAQ Dummy Data & Answer",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Create Complaint & Check Clusters",
+            "node": "Route 2: Complaint Dummy Data & SLA",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Route Suggestion to Department",
+            "node": "Route 3: Suggestion Dummy Data",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Route Proposal to SSG & Faculty",
+            "node": "Route 4: Event Proposal Dummy Data",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Fetch Live Ticket Status",
+            "node": "Route 5: Track Dummy Data & Steps",
             "type": "main",
             "index": 0
           }

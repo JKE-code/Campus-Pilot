@@ -1,13 +1,14 @@
 /* ==========================================================================
    CampusPilot AI — Pure White Modern Design System
-   Top Header: Faded Wave Pattern with Green and Purple Hexagons
+   Top Header: Transparent Bar + Distanced Non-Overlapping Hexagons with Left-to-Right Shine Sweep
+   Left Pane: Live n8n Process & Request Lifecycle Monitor
    ========================================================================== */
 
 :root {
   --bg-pure-white: #ffffff;
   --bg-subtle: #f8fafc;
   --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
+  --bg-card-hover: #f8fafc;
   
   --border-light: #e2e8f0;
   --border-focus: #8b5cf6;
@@ -42,9 +43,9 @@
   --radius-full: 9999px;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
   --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-float: 0 20px 40px -10px rgba(124, 58, 237, 0.12), 0 8px 16px -6px rgba(5, 150, 105, 0.08);
+  --shadow-float: 0 16px 36px -8px rgba(124, 58, 237, 0.12), 0 8px 16px -6px rgba(5, 150, 105, 0.08);
 }
 
 * {
@@ -66,18 +67,18 @@ body {
 }
 
 /* ==========================================================================
-   TOP BACKGROUND: FADED WAVE PATTERN WITH GREEN & PURPLE HEXAGONS
+   TOP BACKGROUND: PROPERLY DISTANCED NON-OVERLAPPING HEXAGONS WITH SHINE SWEEP
    ========================================================================== */
 .hex-wave-header-bg {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 290px;
+  height: 250px;
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, #ffffff 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 90%);
 }
 
 .hex-wave-header-bg svg {
@@ -86,15 +87,43 @@ body {
   display: block;
 }
 
-/* Header Bar */
+/* Left-to-Right Moving Shine Light Beam */
+.hex-shine-sweep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: 250px;
+  background: linear-gradient(
+    90deg, 
+    rgba(255, 255, 255, 0) 0%, 
+    rgba(255, 255, 255, 0.75) 50%, 
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-25deg);
+  pointer-events: none;
+  animation: shineAcross 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes shineAcross {
+  0% { transform: translateX(-350px) skewX(-25deg); opacity: 0; }
+  15% { opacity: 0.85; }
+  65% { opacity: 0.85; }
+  85% { transform: translateX(1600px) skewX(-25deg); opacity: 0; }
+  100% { transform: translateX(1600px) skewX(-25deg); opacity: 0; }
+}
+
+/* ==========================================================================
+   TRANSPARENT MENU BAR (TOPBAR)
+   ========================================================================== */
 header.app-topbar {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
-  padding: 0.9rem 2rem;
+  background: transparent;
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.4);
+  padding: 0.85rem 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -109,8 +138,8 @@ header.app-topbar {
 }
 
 .brand-badge {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-md);
   background: linear-gradient(135deg, var(--green-light) 0%, var(--purple-main) 100%);
   display: flex;
@@ -118,8 +147,8 @@ header.app-topbar {
   justify-content: center;
   color: #fff;
   font-weight: 800;
-  font-size: 1.15rem;
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+  font-size: 1.1rem;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
 }
 
 .brand-title h1 {
@@ -149,7 +178,7 @@ header.app-topbar {
   font-weight: 600;
   padding: 0.35rem 0.85rem;
   border-radius: var(--radius-full);
-  background: var(--green-soft);
+  background: rgba(236, 253, 245, 0.85);
   color: var(--green-main);
   border: 1px solid var(--green-border);
 }
@@ -166,7 +195,7 @@ header.app-topbar {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.9);
   color: var(--text-primary);
   border: 1px solid var(--border-light);
   padding: 0.5rem 1rem;
@@ -179,60 +208,274 @@ header.app-topbar {
 }
 
 .btn-drawer-toggle:hover {
-  background: var(--bg-subtle);
+  background: #ffffff;
   border-color: var(--purple-light);
   color: var(--purple-main);
   transform: translateY(-1px);
 }
 
 /* ==========================================================================
-   MAIN CHAT CONTAINER (SINGLE PAGE CHAT-FIRST UI)
+   2-COLUMN SPLIT LAYOUT (LEFT PANE: LIVE PROCESS / RIGHT PANE: CHAT)
    ========================================================================== */
-main.chat-center-container {
+.app-split-layout {
   position: relative;
   z-index: 10;
-  max-width: 860px;
+  max-width: 1360px;
   width: 100%;
   margin: 0 auto;
   flex: 1;
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 1.75rem;
+  padding: 1.25rem 2rem 2.5rem 2rem;
+}
+
+/* ==========================================================================
+   LEFT PANE: LIVE PROCESS & N8N ORCHESTRATION MONITOR
+   ========================================================================== */
+aside.process-left-pane {
   display: flex;
   flex-direction: column;
-  padding: 1.5rem 1.25rem 2.5rem 1.25rem;
+  gap: 1.25rem;
+}
+
+.pane-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.pane-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.pane-card-title h3 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.active-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--purple-main);
+  box-shadow: 0 0 8px var(--purple-light);
+  animation: pulseLight 1.5s infinite;
+}
+
+@keyframes pulseLight {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+/* Vertical Live Progress Timeline on Left */
+.live-progress-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  position: relative;
+  margin-top: 0.5rem;
+}
+
+.live-progress-stream::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 13px;
+  width: 2px;
+  background: #e2e8f0;
+  z-index: 1;
+}
+
+.live-process-step {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  transition: all 0.3s ease;
+}
+
+.step-icon-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+}
+
+.live-process-step.completed .step-icon-badge {
+  border-color: var(--green-light);
+  background: var(--green-light);
+  color: #ffffff;
+}
+
+.live-process-step.running .step-icon-badge {
+  border-color: var(--purple-main);
+  background: var(--purple-soft);
+  color: var(--purple-main);
+  box-shadow: 0 0 10px rgba(124, 58, 237, 0.25);
+  animation: spinStep 2s linear infinite;
+}
+
+@keyframes spinStep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.step-details {
+  flex: 1;
+}
+
+.step-details h4 {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.step-details p {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 0.15rem;
+}
+
+/* Estimated Resolution Highlight Box */
+.sla-highlight-banner {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border: 1px solid var(--purple-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.95rem;
+  margin-top: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sla-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sla-time-val {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--purple-main);
+}
+
+/* Left Pane: Recent Requests Quick Selector */
+.recent-requests-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 310px;
+  overflow-y: auto;
+}
+
+.request-quick-item {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.request-quick-item:hover, .request-quick-item.active {
+  background: #ffffff;
+  border-color: var(--purple-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateX(2px);
+}
+
+.request-quick-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.quick-ref {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--purple-main);
+}
+
+.quick-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   RIGHT PANE: CHATBOT INTERFACE
+   ========================================================================== */
+main.chat-center-container {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 /* Hero Title */
 .chat-hero {
   text-align: center;
-  margin-top: 1rem;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.25rem;
 }
 
 .chat-hero-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  padding: 0.35rem 0.95rem;
+  padding: 0.3rem 0.85rem;
   border-radius: var(--radius-full);
   background: linear-gradient(90deg, rgba(16, 185, 129, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
   border: 1px solid rgba(139, 92, 246, 0.2);
   color: var(--purple-main);
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .chat-hero h2 {
-  font-size: 2.15rem;
+  font-size: 1.85rem;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text-primary);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.35rem;
 }
 
 .chat-hero p {
   color: var(--text-secondary);
-  font-size: 0.98rem;
-  max-width: 580px;
+  font-size: 0.92rem;
+  max-width: 540px;
   margin: 0 auto;
 }
 
@@ -240,18 +483,18 @@ main.chat-center-container {
 .quick-intent-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.45rem;
   justify-content: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .intent-chip {
   background: #ffffff;
   border: 1px solid var(--border-light);
   color: var(--text-secondary);
-  padding: 0.4rem 0.9rem;
+  padding: 0.38rem 0.85rem;
   border-radius: var(--radius-full);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -318,7 +561,7 @@ main.chat-center-container {
 }
 
 .chat-bubble-payload {
-  max-width: 82%;
+  max-width: 84%;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
@@ -518,14 +761,12 @@ main.chat-center-container {
   background: var(--red-soft);
 }
 
-/* ==========================================================================
-   INPUT BAR (STICKY BOTTOM DOCK)
-   ========================================================================== */
+/* Input Dock */
 .chat-dock {
   position: sticky;
   bottom: 1.5rem;
   z-index: 30;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
@@ -545,7 +786,7 @@ main.chat-center-container {
   background: transparent;
   padding: 0.6rem 0.5rem;
   font-family: inherit;
-  font-size: 0.96rem;
+  font-size: 0.95rem;
   color: var(--text-primary);
   outline: none;
 }
@@ -575,7 +816,6 @@ main.chat-center-container {
   box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
 }
 
-/* Voice Call Consent Switch below input */
 .chat-subdock {
   display: flex;
   justify-content: space-between;
@@ -600,7 +840,7 @@ main.chat-center-container {
 }
 
 /* ==========================================================================
-   SLIDE-OVER DRAWER (STAFF & ADMIN WORKSPACE)
+   SLIDE-OVER DRAWER (COORDINATORS & ADMINISTRATORS)
    ========================================================================== */
 .drawer-backdrop {
   position: fixed;
@@ -698,7 +938,6 @@ main.chat-center-container {
   cursor: pointer;
 }
 
-/* Staff Table inside drawer */
 .drawer-ticket-card {
   background: #ffffff;
   border: 1px solid var(--border-light);
@@ -711,19 +950,15 @@ main.chat-center-container {
   gap: 0.5rem;
 }
 
-.drawer-ticket-card:hover {
-  border-color: var(--purple-light);
-}
-
 /* Responsive */
-@media (max-width: 640px) {
-  header.app-topbar {
-    padding: 0.75rem 1rem;
+@media (max-width: 990px) {
+  .app-split-layout {
+    grid-template-columns: 1fr;
   }
-  .chat-hero h2 {
-    font-size: 1.65rem;
+  aside.process-left-pane {
+    order: 2;
   }
-  .chat-bubble-payload {
-    max-width: 92%;
+  main.chat-center-container {
+    order: 1;
   }
 }
