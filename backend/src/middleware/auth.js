@@ -10,7 +10,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../db');
 
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_jwt_super_secret_for_ci_environment_32chars' : '');
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev_jwt_super_secret_for_local_environment_32chars');
 if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
   console.error('FATAL: JWT_SECRET environment variable is required in production.');
   process.exit(1);
