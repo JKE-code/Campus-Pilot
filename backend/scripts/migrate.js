@@ -8,7 +8,8 @@ async function runMigration() {
   const adminPool = new Pool({
     host: process.env.POSTGRES_HOST || 'localhost',
     port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-    user: 'postgres',
+    user: process.env.POSTGRES_USER || 'postgres',
+    password: process.env.POSTGRES_PASSWORD || 'test_password',
     database: process.env.POSTGRES_DB || 'campuspilot'
   });
 
