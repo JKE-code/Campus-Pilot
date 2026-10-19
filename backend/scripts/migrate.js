@@ -34,15 +34,7 @@ async function runMigration() {
     console.log('🔨 Executing database/schema.sql...');
     await adminPool.query(schemaSql);
 
-    // 3. Execute database/seed_data.sql
-    const seedDataPath = path.resolve(__dirname, '../../database/seed_data.sql');
-    if (fs.existsSync(seedDataPath)) {
-      console.log('🌱 Applying database/seed_data.sql...');
-      const seedDataSql = fs.readFileSync(seedDataPath, 'utf8');
-      await adminPool.query(seedDataSql);
-    }
-
-    // 4. Seeding core sample and external tenants
+    // 3. Seeding core sample and external tenants
     console.log('🏢 Seeding core sample and external tenants...');
     await adminPool.query(`
       INSERT INTO tenants (id, name, slug, domain, config)
@@ -54,6 +46,14 @@ async function runMigration() {
         slug = EXCLUDED.slug,
         domain = EXCLUDED.domain;
     `);
+
+    // 4. Execute database/seed_data.sql
+    const seedDataPath = path.resolve(__dirname, '../../database/seed_data.sql');
+    if (fs.existsSync(seedDataPath)) {
+      console.log('🌱 Applying database/seed_data.sql...');
+      const seedDataSql = fs.readFileSync(seedDataPath, 'utf8');
+      await adminPool.query(seedDataSql);
+    }
 
     // 5. Configuring non-owner app role permissions
     console.log('🔐 Configuring non-owner app role permissions...');

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 -- 1. Users & Staff Directory
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255),
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- 2. Sessions (Refresh Token Tracking)
 CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     family_id UUID DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     refresh_token_hash VARCHAR(255) NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 -- 3. Incidents (Clustered Operational Events)
 CREATE TABLE IF NOT EXISTS incidents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     incident_code VARCHAR(50) UNIQUE NOT NULL,
     title VARCHAR(255) NOT NULL,
     category VARCHAR(100) NOT NULL,
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS incidents (
 -- 4. Core Requests (Tickets & Outpasses)
 CREATE TABLE IF NOT EXISTS requests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     tracking_id VARCHAR(50) UNIQUE NOT NULL,
     type VARCHAR(50) NOT NULL CHECK (type IN ('complaint', 'suggestion', 'event_proposal', 'general_inquiry', 'outpass')),
     category VARCHAR(100) NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS requests (
 -- 5. Audit Trail in Request Actions
 CREATE TABLE IF NOT EXISTS request_actions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     request_id UUID NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
     actor_type VARCHAR(50) NOT NULL CHECK (actor_type IN ('student', 'ai_agent', 'coordinator', 'admin', 'system', 'parent', 'warden', 'security_gate')),
     actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS request_actions (
 -- 6. Notifications Outbox
 CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     recipient_email VARCHAR(255) NOT NULL,
     subject VARCHAR(255) NOT NULL,
     html TEXT NOT NULL,
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS webhook_idempotency (
 -- 9. FAQ Knowledge Base
 CREATE TABLE IF NOT EXISTS knowledge_base (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     category VARCHAR(100) NOT NULL,
     question TEXT NOT NULL,
     answer TEXT NOT NULL,
@@ -161,7 +161,7 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
 -- 10. Security Events Table
 CREATE TABLE IF NOT EXISTS security_events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     event_type VARCHAR(100) NOT NULL,
     severity VARCHAR(50) NOT NULL DEFAULT 'warning' CHECK (severity IN ('info', 'warning', 'critical')),
     actor_email VARCHAR(255),
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS security_events (
 -- 11. Transactional Outbox Events Table
 CREATE TABLE IF NOT EXISTS outbox_events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     aggregate_type VARCHAR(100) NOT NULL,
     aggregate_id VARCHAR(255) NOT NULL,
     event_type VARCHAR(100) NOT NULL,
@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS outbox_events (
 -- 12. Tamper-Evident SHA-256 Hash Chained Audit Log
 CREATE TABLE IF NOT EXISTS audit_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     actor_id UUID,
     actor_email VARCHAR(255) NOT NULL,
     actor_role VARCHAR(50) NOT NULL,
@@ -351,7 +351,7 @@ CREATE POLICY tenant_isolation_knowledge_base ON knowledge_base FOR ALL
 -- 13. Tenant Handbooks & Uploads (Stage 3)
 CREATE TABLE IF NOT EXISTS handbooks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     filename VARCHAR(255) NOT NULL,
     format VARCHAR(50) NOT NULL DEFAULT 'md',
@@ -362,7 +362,7 @@ CREATE TABLE IF NOT EXISTS handbooks (
 
 CREATE TABLE IF NOT EXISTS handbook_chunks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     handbook_id UUID NOT NULL REFERENCES handbooks(id) ON DELETE CASCADE,
     section_title VARCHAR(255) NOT NULL,
     section_citation VARCHAR(255) NOT NULL,
@@ -389,7 +389,7 @@ CREATE POLICY tenant_isolation_handbook_chunks ON handbook_chunks FOR ALL
 -- 14. Stage 4: Multi-Tenant Campus Events & Approval Chain
 CREATE TABLE IF NOT EXISTS events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
     venue VARCHAR(255) NOT NULL,
@@ -413,7 +413,7 @@ CREATE POLICY tenant_isolation_events ON events FOR ALL
 -- 15. Stage 4: DPDP Privacy & Consent Log
 CREATE TABLE IF NOT EXISTS dpdp_consents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     consent_type VARCHAR(100) NOT NULL,
     purpose TEXT NOT NULL,
@@ -431,7 +431,7 @@ CREATE POLICY tenant_isolation_dpdp_consents ON dpdp_consents FOR ALL
 -- 16. Stage 4: Security Gate Scanner Logs (QR Verification Audit)
 CREATE TABLE IF NOT EXISTS gate_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_id UUID NOT NULL DEFAULT 'a0000000-0000-0000-0000-000000000001' REFERENCES tenants(id) ON DELETE CASCADE,
     request_id UUID REFERENCES requests(id) ON DELETE SET NULL,
     student_id UUID REFERENCES users(id) ON DELETE SET NULL,
     outpass_code VARCHAR(100) NOT NULL,
