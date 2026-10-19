@@ -1861,7 +1861,7 @@ if (require.main === module) {
     console.log(`🚀 CampusPilot Enterprise Server running on port ${PORT}`);
     console.log(`🛡️  Security: Helmet CSP, Rate Limiting & HMAC Enabled`);
     console.log(`🔑 Auth: HttpOnly Secure Cookies & Bearer Tokens Active`);
-    console.log(`⚡ Demo Mode: ${DEMO_MODE ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`⚡ Demo Mode: ${isDemoMode() ? 'ENABLED' : 'DISABLED'}`);
     console.log(`====================================================`);
   });
 }
