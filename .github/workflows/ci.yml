@@ -2,9 +2,9 @@ name: CampusPilot CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, v2 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, v2 ]
 
 jobs:
   test:
@@ -34,13 +34,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
 
       - name: Install backend dependencies
         run: |
           cd backend
-          npm ci
+          npm install
 
       - name: Install Playwright Browsers & OS Dependencies
         run: |
@@ -55,7 +53,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: test_password
         run: |
-          # Create non-owner app role for strict RLS enforcement
+          # 1. Create non-owner app role for strict RLS enforcement
           PGPASSWORD=test_password psql -h localhost -U postgres -d campuspilot -c "
             DO \$\$
             BEGIN
@@ -65,9 +63,11 @@ jobs:
             END
             \$\$;
           "
-          # Run database schema, seed, RLS policies, and non-owner permissions
+          # 2. Run database schema, seed, RLS policies, and non-owner permissions
           cd backend
           npm run migrate
+          PGPASSWORD=test_password psql -h localhost -U postgres -d campuspilot -f ../database/seed_data.sql
+          node ../database/seed.js
 
       - name: Run Vitest Security, State Machine & Multi-Tenancy Suite
         env:

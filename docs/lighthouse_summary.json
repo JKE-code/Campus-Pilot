@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-10-19T16:06:39.577Z",
+  "url": "http://127.0.0.1:5178",
+  "scores": {
+    "performance": 40,
+    "accessibility": 94,
+    "best_practices": 96,
+    "seo": 100
+  },
+  "metrics": {
+    "fcp": "3.3 s",
+    "lcp": "4.4 s",
+    "cls": "0.125",
+    "tbt": "2,820 ms",
+    "speed_index": "6.1 s"
+  }
+}

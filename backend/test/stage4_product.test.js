@@ -425,23 +425,24 @@ Robert Coordinator,robert.maint@sample-college.test,coordinator,Facilities & Mai
       expect(Array.isArray(res.body.consents)).toBe(true);
     });
 
-    it('sanitizes user personal identifiable information on account erasure request', async () => {
-      // Create a throwaway student for erasure testing
-      const throwawayId = 'a0000001-0000-0000-0000-000000000099';
-      await db.withTenant(SAMPLE_TENANT_ID, () =>
+    it('sanitizes user personal identifiable information on account erasure request and preserves audit chain', async () => {
+      // Create isolated tenant for clean audit chain verification
+      const erasureTenantId = crypto.randomUUID();
+      await db.query(`
+        INSERT INTO tenants (id, name, slug, domain)
+        VALUES ($1, 'Erasure Test College', $2, $3)
+      `, [erasureTenantId, 'erasure-' + erasureTenantId.slice(0, 8), 'erasure-' + erasureTenantId.slice(0, 8) + '.test']);
+
+      const throwawayId = crypto.randomUUID();
+      await db.withTenant(erasureTenantId, () =>
         db.query(`
           INSERT INTO users (id, tenant_id, name, email, role, phone, parent_name, parent_phone, is_active)
-          VALUES ($1, $2, 'Temporary User', 'temporary@sample-college.test', 'student', '+15550000999', 'Temp Parent', '+15550000888', TRUE)
-          ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name,
-            email = EXCLUDED.email,
-            is_active = TRUE
-        `, [throwawayId, SAMPLE_TENANT_ID])
+          VALUES ($1, $2, 'Temporary User', $3, 'student', '+15550000999', 'Temp Parent', '+15550000888', TRUE)
+        `, [throwawayId, erasureTenantId, `temp_${throwawayId.slice(0, 8)}@sample-college.test`])
       );
 
-
       const throwawayToken = jwt.sign(
-        { sub: throwawayId, role: 'student', email: 'temporary@sample-college.test', tenant_id: SAMPLE_TENANT_ID },
+        { sub: throwawayId, role: 'student', email: `temp_${throwawayId.slice(0, 8)}@sample-college.test`, tenant_id: erasureTenantId },
         JWT_SECRET,
         { expiresIn: '15m' }
       );
@@ -454,7 +455,7 @@ Robert Coordinator,robert.maint@sample-college.test,coordinator,Facilities & Mai
       expect(res.body.erased).toBe(true);
 
       // Verify DB record is sanitized
-      const check = await db.withTenant(SAMPLE_TENANT_ID, () =>
+      const check = await db.withTenant(erasureTenantId, () =>
         db.query('SELECT name, email, phone, parent_name, is_active FROM users WHERE id = $1', [throwawayId])
       );
       expect(check.rows[0].name).toBe('Anonymized Student');
@@ -462,6 +463,64 @@ Robert Coordinator,robert.maint@sample-college.test,coordinator,Facilities & Mai
       expect(check.rows[0].phone).toBeNull();
       expect(check.rows[0].parent_name).toBeNull();
       expect(check.rows[0].is_active).toBe(false);
+
+      // Verify that audit log recorded the erasure without breaking the cryptographic hash chain
+      const auditRes = await db.withTenant(erasureTenantId, () =>
+        db.query("SELECT * FROM audit_log WHERE resource_id = $1 AND action = 'USER_ACCOUNT_ERASED'", [throwawayId])
+      );
+      expect(auditRes.rows.length).toBeGreaterThan(0);
+      expect(auditRes.rows[0].action).toBe('USER_ACCOUNT_ERASED');
+
+      // Verify complete audit chain validity
+      const { verifyAuditChain } = require('../src/services/audit');
+      const chainVerification = await verifyAuditChain(erasureTenantId);
+      expect(chainVerification.valid).toBe(true);
+      expect(chainVerification.count).toBeGreaterThan(0);
+    });
+
+    // -------------------------------------------------------------------------
+    // 7. Stage 4 Explicit Role-Boundary Security Tests
+    // -------------------------------------------------------------------------
+    it('enforces role boundaries on Stage 4 enterprise routes', async () => {
+      // 1. Student attempting gate verification pass (forbidden, requires security_gate/warden/admin)
+      const gateRes = await request(app)
+        .post('/api/outpass/verify-qr')
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send({
+          qr_payload: 'fake.signed.qr.payload',
+          gate_location: 'Gate 1',
+          direction: 'exit'
+        });
+      expect(gateRes.status).toBe(403);
+      expect(gateRes.body.error).toMatch(/Forbidden/i);
+
+      // 2. Student attempting staff CSV bulk ingestion (forbidden, requires admin/super_admin)
+      const staffRes = await request(app)
+        .post('/api/tenant/staff/import-csv')
+        .set('Authorization', `Bearer ${studentToken}`)
+        .send({
+          csv_content: 'name,email,role,department\nJohn Doe,john@test.com,warden,Hostel'
+        });
+      expect(staffRes.status).toBe(403);
+      expect(staffRes.body.error).toMatch(/Forbidden/i);
+
+      // 3. Regular admin attempting super-admin plan update (forbidden, requires super_admin)
+      const planRes = await request(app)
+        .put(`/api/admin/tenants/${SAMPLE_TENANT_ID}/plan`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          plan: 'enterprise_custom',
+          student_quota: 15000,
+          features: { ai_voice: true, multi_campus: true }
+        });
+      expect(planRes.status).toBe(403);
+      expect(planRes.body.error).toMatch(/Forbidden/i);
+
+      // 4. Unauthenticated attempt to delete account (unauthorized)
+      const unauthErasure = await request(app)
+        .post('/api/privacy/delete-account');
+      expect(unauthErasure.status).toBe(401);
+      expect(unauthErasure.body.error).toMatch(/Authentication required/i);
     });
   });
 });

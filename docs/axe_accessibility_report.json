@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-10-18T11:00:19.108Z",
+  "standard": "WCAG 2.2 Level AA",
+  "summary": {
+    "light_violations": 0,
+    "dark_violations": 0,
+    "light_passes": 34,
+    "dark_passes": 34
+  },
+  "light_violations_detail": [],
+  "dark_violations_detail": []
+}

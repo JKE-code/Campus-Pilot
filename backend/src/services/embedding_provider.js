@@ -43,11 +43,18 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
- * High-Speed Local Semantic Embedding Provider
- * Produces deterministic 256-dimensional normalized dense vectors using
- * semantic token hashing, subword n-grams, and keyword frequency weighting.
+ * Deterministic Subword Hash Embedding Provider (HashingVectorizer / Feature Hashing)
+ * 
+ * HONEST TECHNICAL DESCRIPTION:
+ * This is NOT a neural network / deep learning embedding model (such as BERT, Ada-002, or text-embedding-004).
+ * It is a fast, deterministic, zero-dependency subword n-gram feature hashing vectorizer (Jenkins one-at-a-time
+ * hash projected into a 256-bucket dense vector with L2 normalization and keyword frequency weighting).
+ * It is used for offline testing, CI environments, and local fast-path retrieval without external API costs.
+ * 
+ * For neural representation learning, configure EMBEDDING_PROVIDER=gemini with GEMINI_API_KEY
+ * to use Google Gemini text-embedding-004.
  */
-class LocalSemanticEmbeddingProvider extends EmbeddingProvider {
+class SubwordHashEmbeddingProvider extends EmbeddingProvider {
   constructor(dimension = 256) {
     super();
     this.dimension = dimension;
@@ -112,6 +119,8 @@ class LocalSemanticEmbeddingProvider extends EmbeddingProvider {
 }
 
 
+const LocalSemanticEmbeddingProvider = SubwordHashEmbeddingProvider;
+
 /**
  * Gemini Embedding Provider (Google Generative AI)
  */
@@ -119,7 +128,7 @@ class GeminiEmbeddingProvider extends EmbeddingProvider {
   constructor(apiKey = process.env.GEMINI_API_KEY) {
     super();
     this.apiKey = apiKey;
-    this.localFallback = new LocalSemanticEmbeddingProvider();
+    this.localFallback = new SubwordHashEmbeddingProvider();
   }
 
   /**
@@ -168,7 +177,7 @@ function getEmbeddingProvider() {
     if (providerType === 'gemini' && process.env.GEMINI_API_KEY && process.env.NODE_ENV !== 'test') {
       activeProvider = new GeminiEmbeddingProvider();
     } else {
-      activeProvider = new LocalSemanticEmbeddingProvider();
+      activeProvider = new SubwordHashEmbeddingProvider();
     }
   }
   return activeProvider;
@@ -176,6 +185,7 @@ function getEmbeddingProvider() {
 
 module.exports = {
   EmbeddingProvider,
+  SubwordHashEmbeddingProvider,
   LocalSemanticEmbeddingProvider,
   GeminiEmbeddingProvider,
   getEmbeddingProvider

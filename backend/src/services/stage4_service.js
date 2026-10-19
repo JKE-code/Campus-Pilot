@@ -440,6 +440,23 @@ async function eraseUserAccount(tenantId, userId) {
     // 3. Revoke sessions
     await client.query('UPDATE sessions SET is_revoked = TRUE WHERE user_id = $1', [userId]);
 
+    // 4. Append tamper-evident audit record declaring account erasure without mutating history
+    const { recordAuditEvent } = require('./audit');
+    await recordAuditEvent(client, {
+      tenantId,
+      actorId: userId,
+      actorEmail: anonymizedEmail,
+      actorRole: 'student',
+      action: 'USER_ACCOUNT_ERASED',
+      resourceType: 'user',
+      resourceId: userId,
+      newState: {
+        dpdp_action: 'account_erasure_processed',
+        anonymized_user_id: userId,
+        sanitized_email: anonymizedEmail
+      }
+    });
+
     return {
       erased: true,
       message: 'User personal identifiable information (PII) has been permanently sanitized under DPDP requirements.'

@@ -86,12 +86,13 @@ async function authenticate(req, res, next) {
 
     /** @type {any} */
     const decoded = jwt.verify(token, JWT_SECRET);
+    const userTenantId = decoded.tenant_id || req.headers['x-tenant-id'] || 'a0000000-0000-0000-0000-000000000001';
 
-    // Fetch full verified user record from database
-    const userRes = await db.query(`
+    // Fetch full verified user record from database within tenant context
+    const userRes = await db.withTenant(userTenantId, () => db.query(`
       SELECT id, tenant_id, name, email, phone, role, department, roll_number, parent_name, parent_phone, hostel_block, room_no, is_active
       FROM users WHERE id = $1
-    `, [decoded.sub]);
+    `, [decoded.sub]));
 
     if (userRes.rows.length === 0 || !userRes.rows[0].is_active) {
       return res.status(401).json({ error: 'User account not found or has been deactivated.' });

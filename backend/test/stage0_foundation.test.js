@@ -117,7 +117,32 @@ describe('Stage 0: Foundation Hardening & Verification Suite', () => {
       expect(validateTransition('outpass', 'submitted', 'approved').valid).toBe(false);
       expect(validateTransition('outpass', 'awaiting_parent_approval', 'approved').valid).toBe(false);
       expect(validateTransition('outpass', 'parent_denied', 'approved').valid).toBe(false);
-      expect(validateTransition('outpass', 'completed', 'awaiting_warden_approval').valid).toBe(false);
+    });
+
+    it('exhaustively validates the full Cartesian product matrix of illegal state transitions', () => {
+      let illegalTested = 0;
+      let legalTested = 0;
+      for (const type of ['complaint', 'outpass']) {
+        const transitions = TICKET_STATE_TRANSITIONS[type];
+        const allStates = Object.keys(transitions);
+        for (const fromState of allStates) {
+          const allowed = new Set(transitions[fromState]);
+          for (const toState of allStates) {
+            if (fromState === toState) continue;
+            const res = validateTransition(type, fromState, toState);
+            if (allowed.has(toState)) {
+              expect(res.valid).toBe(true);
+              legalTested++;
+            } else {
+              expect(res.valid).toBe(false);
+              expect(res.error).toMatch(/Illegal state transition/);
+              illegalTested++;
+            }
+          }
+        }
+      }
+      expect(illegalTested).toBeGreaterThan(100);
+      expect(legalTested).toBeGreaterThan(15);
     });
 
     it('API rejects illegal status transition with 400 Bad Request', async () => {
