@@ -14,18 +14,18 @@ const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL
 // In-memory cache for fast responses
 const responseCache = new Map();
 
-// Parse complete_hitam_knowledgebase.md into structured sections
-let hitamSections = [];
+// Parse sample_fictional_handbook.md into structured sections
+let handbookSections = [];
 let fullKbText = '';
 
 try {
-  const kbPath = path.resolve(__dirname, '../../complete_hitam_knowledgebase.md');
+  const kbPath = process.env.CAMPUS_HANDBOOK_PATH || path.resolve(__dirname, '../../data/sample_fictional_handbook.md');
   if (fs.existsSync(kbPath)) {
     fullKbText = fs.readFileSync(kbPath, 'utf8');
     
     // Split into sections by Markdown headings
     const rawSections = fullKbText.split(/\n(?=#{1,3}\s+)/);
-    hitamSections = rawSections.map(sec => {
+    handbookSections = rawSections.map(sec => {
       const firstLine = sec.split('\n')[0] || '';
       const title = firstLine.replace(/^#+\s*/, '').trim();
       return {
@@ -35,7 +35,7 @@ try {
       };
     }).filter(s => s.content.length > 50);
 
-    console.log(`[Gemini Knowledge Base] Indexed ${hitamSections.length} topical sections from complete_hitam_knowledgebase.md`);
+    console.log(`[Gemini Knowledge Base] Indexed ${handbookSections.length} topical sections from sample_fictional_handbook.md`);
   }
 } catch (err) {
   console.warn('[Gemini Knowledge Base] Could not index markdown file:', err.message);
@@ -45,11 +45,11 @@ try {
  * Retrieves the most relevant knowledge sections based on query tokens
  */
 function getRelevantKbContext(query) {
-  if (hitamSections.length === 0) return fullKbText.substring(0, 3000);
+  if (handbookSections.length === 0) return fullKbText.substring(0, 3000);
 
   const tokens = query.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(t => t.length > 2);
   
-  const scored = hitamSections.map(sec => {
+  const scored = handbookSections.map(sec => {
     let score = 0;
     tokens.forEach(tok => {
       if (sec.title.toLowerCase().includes(tok)) score += 5;
@@ -63,7 +63,7 @@ function getRelevantKbContext(query) {
   // Take top 2 sections or default to first 2 sections
   const topSections = scored.filter(s => s.score > 0).slice(0, 2);
   if (topSections.length === 0) {
-    return hitamSections.slice(0, 2).map(s => s.content).join('\n\n---\n\n');
+    return handbookSections.slice(0, 2).map(s => s.content).join('\n\n---\n\n');
   }
 
   return topSections.map(s => s.content).join('\n\n---\n\n');

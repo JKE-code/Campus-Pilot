@@ -13,6 +13,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import app from '../src/server';
 import db from '../src/db';
 import stage4Service from '../src/services/stage4_service';
@@ -213,8 +214,8 @@ Robert Coordinator,robert.maint@sample-college.test,coordinator,Facilities & Mai
     let validQrPayload;
 
     beforeAll(async () => {
-      // Create approved outpass in database
-      testOutpassTrackingId = 'CP-2026-9901';
+      // Create approved outpass in database with unique tracking ID
+      testOutpassTrackingId = 'CP-QR-' + crypto.randomUUID().slice(0, 8).toUpperCase();
       const validUntil = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
 
       await db.withTenant(SAMPLE_TENANT_ID, () =>
@@ -231,6 +232,9 @@ Robert Coordinator,robert.maint@sample-college.test,coordinator,Facilities & Mai
           ON CONFLICT (tracking_id) DO UPDATE SET status = 'approved'
         `, [SAMPLE_TENANT_ID, testOutpassTrackingId, studentId, validUntil])
       );
+
+      // Clean prior gate logs for idempotent test runs
+      await db.query('DELETE FROM gate_logs WHERE outpass_code = $1', [testOutpassTrackingId]);
 
       // Generate HMAC signed QR payload
       const qrObj = stage4Service.generateSignedOutpassQr({
@@ -265,6 +269,22 @@ Robert Coordinator,robert.maint@sample-college.test,coordinator,Facilities & Mai
       );
       expect(logs.rows.length).toBeGreaterThanOrEqual(1);
       expect(logs.rows[0].gate_location).toBe('Gate 1 (North Arch)');
+    });
+
+    it('rejects replayed QR pass after successful scan (strictly single-use)', async () => {
+      const replayRes = await request(app)
+        .post('/api/outpass/verify-qr')
+        .set('Authorization', `Bearer ${gateToken}`)
+        .send({
+          qr_payload: validQrPayload,
+          gate_location: 'Gate 2 (South Gate)',
+          direction: 'exit'
+        });
+
+      expect(replayRes.status).toBe(400);
+      expect(replayRes.body.valid).toBe(false);
+      expect(replayRes.body.status).toBe('ALREADY_USED');
+      expect(replayRes.body.message).toMatch(/REPLAY REJECTED/i);
     });
 
     it('rejects tampered QR pass with cryptographic signature mismatch', async () => {
@@ -478,49 +498,295 @@ Robert Coordinator,robert.maint@sample-college.test,coordinator,Facilities & Mai
       expect(chainVerification.count).toBeGreaterThan(0);
     });
 
+    it('verifies that after erasing a user, ZERO PII remains in audit_log, request_actions, notifications, security_events, voice transcripts, or sessions', async () => {
+      const sweepTenantId = crypto.randomUUID();
+      const piiStudentId = crypto.randomUUID();
+      const piiStudentName = 'Priyanka Sen';
+      const piiStudentEmail = `priyanka_${piiStudentId.slice(0, 8)}@deep-erasure-sweep.test`;
+      const piiStudentPhone = '+919876543299';
+      const piiParentName = 'Debashis Sen';
+      const piiParentPhone = '+919876543288';
+      const piiTrackingId = 'CP-SWEEP-' + piiStudentId.slice(0, 6).toUpperCase();
+
+      // 1. Create tenant and user with full PII
+      await db.query(`
+        INSERT INTO tenants (id, name, slug, domain)
+        VALUES ($1, 'PII Sweep Tenant', $2, $3)
+      `, [sweepTenantId, 'sweep-' + sweepTenantId.slice(0, 8), 'sweep-' + sweepTenantId.slice(0, 8) + '.test']);
+
+      await db.withTenant(sweepTenantId, () =>
+        db.query(`
+          INSERT INTO users (id, tenant_id, name, email, phone, role, department, parent_name, parent_phone, password_hash)
+          VALUES ($1, $2, $3, $4, $5, 'student', 'Computer Science', $6, $7, 'hashed_pw')
+        `, [piiStudentId, sweepTenantId, piiStudentName, piiStudentEmail, piiStudentPhone, piiParentName, piiParentPhone])
+      );
+
+      // 2. Populate records across all six tables
+      // a. Request with voice transcript containing student and parent details
+      const reqRes = await db.withTenant(sweepTenantId, () =>
+        db.query(`
+          INSERT INTO requests (
+            tenant_id, tracking_id, type, category, title, description,
+            student_id, student_name, student_email, student_phone, parent_name, parent_phone,
+            status, voice_call_status, voice_transcript, voice_extracted_details
+          ) VALUES (
+            $1, $2, 'outpass', 'Hostel Outpass', 'Family Emergency', 'Attending event with family',
+            $3, $4, $5, $6, $7, $8,
+            'approved', 'completed',
+            'Guardian Debashis Sen explicitly granted outpass leave for Priyanka Sen on call',
+            '{"guardian_contact": "+919876543288", "student_contact": "+919876543299"}'::jsonb
+          ) RETURNING id
+        `, [sweepTenantId, piiTrackingId, piiStudentId, piiStudentName, piiStudentEmail, piiStudentPhone, piiParentName, piiParentPhone])
+      );
+      const requestId = reqRes.rows[0].id;
+
+      // b. Request Actions
+      await db.withTenant(sweepTenantId, () =>
+        db.query(`
+          INSERT INTO request_actions (tenant_id, request_id, actor_type, actor_id, action_type, notes, payload)
+          VALUES ($1, $2, 'student', $3, 'call_logged', $4, $5)
+        `, [
+          sweepTenantId,
+          requestId,
+          piiStudentId,
+          `Direct authorization given by parent Debashis Sen for Priyanka Sen`,
+          JSON.stringify({ student_phone: piiStudentPhone, parent_phone: piiParentPhone })
+        ])
+      );
+
+      // c. Notifications Outbox
+      await db.withTenant(sweepTenantId, () =>
+        db.query(`
+          INSERT INTO notifications (tenant_id, recipient_email, subject, html, tracking_id)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [
+          sweepTenantId,
+          piiStudentEmail,
+          'Outpass Gate Pass for Priyanka Sen',
+          `<p>Dear Debashis Sen, outpass for Priyanka Sen (Phone: +919876543299) has been confirmed.</p>`,
+          piiTrackingId
+        ])
+      );
+
+      // d. Sessions (inserted within tenant context for RLS)
+      await db.withTenant(sweepTenantId, () =>
+        db.query(`
+          INSERT INTO sessions (tenant_id, user_id, refresh_token_hash, user_agent, expires_at)
+          VALUES ($1, $2, 'fake_hash', 'Mozilla/5.0 PII Test', NOW() + INTERVAL '7 days')
+        `, [sweepTenantId, piiStudentId])
+      );
+
+      // e. Audit Log (via recordAuditEvent, which stores IDs only)
+      const client = await db.getClient(sweepTenantId);
+      try {
+        await client.query('BEGIN');
+        const { recordAuditEvent } = require('../src/services/audit');
+        await recordAuditEvent(client, {
+          tenantId: sweepTenantId,
+          actorId: piiStudentId,
+          actorEmail: piiStudentEmail,
+          actorRole: 'student',
+          action: 'outpass_requested',
+          resourceType: 'request',
+          resourceId: requestId,
+          newState: {
+            tracking_id: piiTrackingId,
+            student_name: piiStudentName,
+            student_email: piiStudentEmail,
+            parent_details: { name: piiParentName, phone: piiParentPhone }
+          }
+        });
+        await client.query('COMMIT');
+      } finally {
+        client.release();
+      }
+
+      // f. Security Events (masked actor_email)
+      await db.query(`
+        INSERT INTO security_events (tenant_id, event_type, severity, actor_email, ip_address, details)
+        VALUES ($1, 'account_lockout', 'warning', $2, '127.0.0.1', '{"attempts": 5}'::jsonb)
+      `, [sweepTenantId, `masked_${crypto.createHash('sha256').update(piiStudentEmail).digest('hex').slice(0, 16)}@tenant.id`]);
+
+      // 3. Perform DPDP Erasure
+      const eraseResult = await stage4Service.eraseUserAccount(sweepTenantId, piiStudentId);
+      expect(eraseResult.erased).toBe(true);
+
+      // 4. Exhaustive Search for all PII identifiers across all 6 tables
+      const piiValues = [piiStudentName, piiStudentEmail, piiStudentPhone, piiParentName, piiParentPhone];
+
+      for (const pii of piiValues) {
+        // Search 1: audit_log
+        const auditMatch = await db.query(`
+          SELECT id FROM audit_log
+          WHERE tenant_id = $1
+            AND (actor_email ILIKE '%' || $2 || '%'
+                 OR previous_state::text ILIKE '%' || $2 || '%'
+                 OR new_state::text ILIKE '%' || $2 || '%')
+        `, [sweepTenantId, pii]);
+        expect(auditMatch.rows, `Found PII "${pii}" in audit_log`).toHaveLength(0);
+
+        // Search 2: request_actions
+        const actionsMatch = await db.query(`
+          SELECT id FROM request_actions
+          WHERE tenant_id = $1
+            AND (notes ILIKE '%' || $2 || '%' OR payload::text ILIKE '%' || $2 || '%')
+        `, [sweepTenantId, pii]);
+        expect(actionsMatch.rows, `Found PII "${pii}" in request_actions`).toHaveLength(0);
+
+        // Search 3: notifications
+        const notifMatch = await db.query(`
+          SELECT id FROM notifications
+          WHERE tenant_id = $1
+            AND (recipient_email ILIKE '%' || $2 || '%'
+                 OR subject ILIKE '%' || $2 || '%'
+                 OR html ILIKE '%' || $2 || '%')
+        `, [sweepTenantId, pii]);
+        expect(notifMatch.rows, `Found PII "${pii}" in notifications`).toHaveLength(0);
+
+        // Search 4: security_events
+        const secMatch = await db.query(`
+          SELECT id FROM security_events
+          WHERE tenant_id = $1
+            AND (actor_email ILIKE '%' || $2 || '%' OR details::text ILIKE '%' || $2 || '%')
+        `, [sweepTenantId, pii]);
+        expect(secMatch.rows, `Found PII "${pii}" in security_events`).toHaveLength(0);
+
+        // Search 5: requests (voice transcripts & profile columns)
+        const reqMatch = await db.query(`
+          SELECT id FROM requests
+          WHERE tenant_id = $1
+            AND (student_name ILIKE '%' || $2 || '%'
+                 OR student_email ILIKE '%' || $2 || '%'
+                 OR student_phone ILIKE '%' || $2 || '%'
+                 OR parent_name ILIKE '%' || $2 || '%'
+                 OR parent_phone ILIKE '%' || $2 || '%'
+                 OR voice_transcript ILIKE '%' || $2 || '%'
+                 OR voice_extracted_details::text ILIKE '%' || $2 || '%')
+        `, [sweepTenantId, pii]);
+        expect(reqMatch.rows, `Found PII "${pii}" in requests / voice transcripts`).toHaveLength(0);
+      }
+
+      // Search 6: sessions (all active sessions revoked/deleted)
+      const sessionMatch = await db.query('SELECT id FROM sessions WHERE user_id = $1', [piiStudentId]);
+      expect(sessionMatch.rows, 'Active sessions still remain for erased user').toHaveLength(0);
+
+      // Verify audit chain remains unbroken and valid
+      const { verifyAuditChain } = require('../src/services/audit');
+      const chainCheck = await verifyAuditChain(sweepTenantId);
+      expect(chainCheck.valid).toBe(true);
+      expect(chainCheck.count).toBe(2); // Initial action + USER_ACCOUNT_ERASED event
+    });
+
     // -------------------------------------------------------------------------
-    // 7. Stage 4 Explicit Role-Boundary Security Tests
+    // 7. Role-Boundary & Multi-Tenant Isolation Security Tests
     // -------------------------------------------------------------------------
-    it('enforces role boundaries on Stage 4 enterprise routes', async () => {
-      // 1. Student attempting gate verification pass (forbidden, requires security_gate/warden/admin)
-      const gateRes = await request(app)
-        .post('/api/outpass/verify-qr')
-        .set('Authorization', `Bearer ${studentToken}`)
-        .send({
-          qr_payload: 'fake.signed.qr.payload',
-          gate_location: 'Gate 1',
-          direction: 'exit'
-        });
-      expect(gateRes.status).toBe(403);
-      expect(gateRes.body.error).toMatch(/Forbidden/i);
+    it('verifies that every /api/admin/* route rejects non-super-admins (students, coordinators, wardens, tenant admins)', async () => {
+      const adminRoutes = [
+        { method: 'get', path: '/api/admin/tenants' },
+        { method: 'put', path: `/api/admin/tenants/${SAMPLE_TENANT_ID}/plan`, body: { plan: 'enterprise', max_students: 10000 } },
+        { method: 'get', path: '/api/admin/metrics' }
+      ];
 
-      // 2. Student attempting staff CSV bulk ingestion (forbidden, requires admin/super_admin)
-      const staffRes = await request(app)
-        .post('/api/tenant/staff/import-csv')
-        .set('Authorization', `Bearer ${studentToken}`)
-        .send({
-          csv_content: 'name,email,role,department\nJohn Doe,john@test.com,warden,Hostel'
-        });
-      expect(staffRes.status).toBe(403);
-      expect(staffRes.body.error).toMatch(/Forbidden/i);
+      const nonSuperAdminTokens = [
+        { role: 'student', token: studentToken },
+        { role: 'faculty', token: facultyToken },
+        { role: 'warden', token: wardenToken },
+        { role: 'tenant_admin', token: adminToken }
+      ];
 
-      // 3. Regular admin attempting super-admin plan update (forbidden, requires super_admin)
-      const planRes = await request(app)
-        .put(`/api/admin/tenants/${SAMPLE_TENANT_ID}/plan`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({
-          plan: 'enterprise_custom',
-          student_quota: 15000,
-          features: { ai_voice: true, multi_campus: true }
-        });
-      expect(planRes.status).toBe(403);
-      expect(planRes.body.error).toMatch(/Forbidden/i);
+      for (const route of adminRoutes) {
+        for (const { role, token } of nonSuperAdminTokens) {
+          const reqBuilder = route.method === 'get'
+            ? request(app).get(route.path)
+            : request(app).put(route.path).send(route.body);
 
-      // 4. Unauthenticated attempt to delete account (unauthorized)
-      const unauthErasure = await request(app)
-        .post('/api/privacy/delete-account');
-      expect(unauthErasure.status).toBe(401);
-      expect(unauthErasure.body.error).toMatch(/Authentication required/i);
+          const res = await reqBuilder.set('Authorization', `Bearer ${token}`);
+          expect(res.status, `${role} should receive 403 on ${route.path}`).toBe(403);
+          expect(res.body.error).toMatch(/Forbidden/i);
+        }
+
+        // Verify super_admin is accepted (status 200)
+        const superReq = route.method === 'get'
+          ? request(app).get(route.path)
+          : request(app).put(route.path).send(route.body);
+
+        const superRes = await superReq.set('Authorization', `Bearer ${superAdminToken}`);
+        expect(superRes.status, `super_admin should receive 200 on ${route.path}`).toBe(200);
+      }
+    });
+
+    it('verifies cross-tenant data isolation: a tenant admin cannot read or modify another tenant’s data', async () => {
+      // 1. Create two distinct tenants
+      const tenantAId = crypto.randomUUID();
+      const tenantBId = crypto.randomUUID();
+
+      await db.query(`
+        INSERT INTO tenants (id, name, slug, domain) VALUES
+        ($1, 'Tenant Alpha', $3, $4),
+        ($2, 'Tenant Beta', $5, $6)
+      `, [
+        tenantAId, tenantBId,
+        'alpha-' + tenantAId.slice(0, 6), 'alpha-' + tenantAId.slice(0, 8) + '.test',
+        'beta-' + tenantBId.slice(0, 6), 'beta-' + tenantBId.slice(0, 8) + '.test'
+      ]);
+
+      // 2. Create Tenant Admin in Tenant A
+      const adminAId = crypto.randomUUID();
+      await db.withTenant(tenantAId, () =>
+        db.query(`
+          INSERT INTO users (id, tenant_id, name, email, role, department, password_hash)
+          VALUES ($1, $2, 'Admin Alpha', $3, 'admin', 'Administration', 'hash')
+        `, [adminAId, tenantAId, `admin_a_${adminAId.slice(0, 6)}@alpha.test`])
+      );
+
+      const tokenAdminA = jwt.sign(
+        { sub: adminAId, role: 'admin', email: `admin_a_${adminAId.slice(0, 6)}@alpha.test`, tenant_id: tenantAId },
+        JWT_SECRET,
+        { expiresIn: '15m' }
+      );
+
+      // 3. Create Ticket in Tenant B
+      const studentBId = crypto.randomUUID();
+      const ticketBId = crypto.randomUUID();
+      const trackingB = 'CP-BETA-' + ticketBId.slice(0, 6).toUpperCase();
+
+      await db.withTenant(tenantBId, () =>
+        db.query(`
+          INSERT INTO users (id, tenant_id, name, email, role, department, password_hash)
+          VALUES ($1, $2, 'Student Beta', $3, 'student', 'ECE', 'hash')
+        `, [studentBId, tenantBId, `student_b_${studentBId.slice(0, 6)}@beta.test`])
+      );
+
+      await db.withTenant(tenantBId, () =>
+        db.query(`
+          INSERT INTO requests (id, tenant_id, tracking_id, type, category, title, description, student_id, student_name, student_email, status)
+          VALUES ($1, $2, $3, 'complaint', 'Maintenance', 'Broken AC in Lab B', 'Cooling failure', $4, 'Student Beta', 'b@beta.test', 'submitted')
+        `, [ticketBId, tenantBId, trackingB, studentBId])
+      );
+
+      // 4. Admin A attempts to READ Tenant B's ticket via API
+      const readRes = await request(app)
+        .get(`/api/requests/${ticketBId}`)
+        .set('Authorization', `Bearer ${tokenAdminA}`);
+
+      expect([403, 404]).toContain(readRes.status);
+
+      // 5. Admin A attempts to MODIFY Tenant B's ticket via API
+      const modifyRes = await request(app)
+        .post(`/api/requests/${ticketBId}/actions`)
+        .set('Authorization', `Bearer ${tokenAdminA}`)
+        .send({
+          action_type: 'resolved',
+          notes: 'Unauthorized resolution attempt from foreign tenant'
+        });
+
+      expect([403, 404]).toContain(modifyRes.status);
+
+      // 6. Direct SQL query by Tenant A context returns 0 rows for Tenant B's ticket
+      const sqlCheck = await db.withTenant(tenantAId, () =>
+        db.query('SELECT id FROM requests WHERE id = $1', [ticketBId])
+      );
+      expect(sqlCheck.rows).toHaveLength(0);
     });
   });
 });

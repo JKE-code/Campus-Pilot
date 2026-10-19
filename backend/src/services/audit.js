@@ -38,6 +38,27 @@ function computeRecordHash({ previousHash, actorEmail, action, resourceType, res
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
+function stripPiiFromState(state) {
+  if (!state || typeof state !== 'object') return state;
+  if (Array.isArray(state)) return state.map(stripPiiFromState);
+  const piiKeys = new Set([
+    'name', 'email', 'phone', 'parent_name', 'parent_phone',
+    'student_name', 'student_email', 'student_phone', 'parent_details',
+    'studentName', 'studentEmail', 'studentPhone', 'parentName', 'parentPhone'
+  ]);
+  const sanitized = {};
+  for (const [k, v] of Object.entries(state)) {
+    if (piiKeys.has(k)) {
+      sanitized[k] = '[ID_STORED_ONLY]';
+    } else if (typeof v === 'object' && v !== null) {
+      sanitized[k] = stripPiiFromState(v);
+    } else {
+      sanitized[k] = v;
+    }
+  }
+  return sanitized;
+}
+
 /**
  * Record a cryptographically chained audit log entry
  * @param {object} client - pg client or db module
@@ -82,13 +103,25 @@ async function recordAuditEvent(client, {
 
   const previousHash = latestRes.rows.length > 0 ? latestRes.rows[0].current_hash : GENESIS_HASH;
   const now = new Date().toISOString();
+
+  // Redesign: audit rows store only IDs/pseudonyms, never raw personal PII.
+  // This satisfies DPDP & GDPR without breaking immutable cryptographic hash chaining.
+  const safeActorEmail = actorId
+    ? `usr_${actorId}@tenant.id`
+    : (actorEmail && (actorEmail.includes('@internal') || actorEmail.includes('@tenant.id') || actorEmail.startsWith('worker_') || actorEmail.startsWith('admin@') || actorEmail.startsWith('warden@') || actorEmail.startsWith('voice_'))
+        ? actorEmail
+        : (actorEmail ? `usr_${crypto.createHash('sha256').update(actorEmail).digest('hex').slice(0, 16)}@tenant.id` : 'system@tenant.id'));
+
+  const sanitizedPrevState = stripPiiFromState(previousState);
+  const sanitizedNewState = stripPiiFromState(newState);
+
   const currentHash = computeRecordHash({
     previousHash,
-    actorEmail,
+    actorEmail: safeActorEmail,
     action,
     resourceType,
     resourceId,
-    newState,
+    newState: sanitizedNewState,
     timestamp: now
   });
 
@@ -103,13 +136,13 @@ async function recordAuditEvent(client, {
   `, [
     tenantId,
     actorId,
-    actorEmail,
+    safeActorEmail,
     actorRole,
     action,
     resourceType,
     resourceId,
-    previousState ? JSON.stringify(previousState) : null,
-    newState ? JSON.stringify(newState) : null,
+    sanitizedPrevState ? JSON.stringify(sanitizedPrevState) : null,
+    sanitizedNewState ? JSON.stringify(sanitizedNewState) : null,
     previousHash,
     currentHash,
     ipAddress,

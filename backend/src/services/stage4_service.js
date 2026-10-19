@@ -298,6 +298,24 @@ async function verifyGatePass(tenantId, qrPayload, gateLocation = 'Main Gate', d
     };
   }
 
+  // 3b. Replay Prevention: Check if pass has already been scanned and used
+  const priorScan = await db.withTenant(tenantId, () =>
+    db.query(`
+      SELECT id, gate_location, verified_at
+      FROM gate_logs
+      WHERE outpass_code = $1 AND direction = $2
+      LIMIT 1
+    `, [tracking_id, direction])
+  );
+
+  if (priorScan.rows.length > 0) {
+    return {
+      valid: false,
+      status: 'ALREADY_USED',
+      message: `REPLAY REJECTED: Gate pass ${tracking_id} was already scanned at ${priorScan.rows[0].gate_location} on ${new Date(priorScan.rows[0].verified_at).toLocaleTimeString()}. Passes are strictly single-use.`
+    };
+  }
+
   // 4. Log gate scan into gate_logs
   await db.withTenant(tenantId, () =>
     db.query(`
@@ -412,6 +430,14 @@ async function exportUserData(tenantId, userId) {
 
 async function eraseUserAccount(tenantId, userId) {
   return db.withTransaction(async (client) => {
+    // 0. Fetch user details to know exact identifiers to scrub
+    const uRes = await client.query(`
+      SELECT name, email, phone, parent_name, parent_phone 
+      FROM users WHERE id = $1
+    `, [userId]);
+    if (uRes.rows.length === 0) throw new Error('User not found');
+    const u = uRes.rows[0];
+
     // 1. Anonymize user record
     const anonymizedEmail = `erased_${userId.slice(0, 8)}@dpdp-anonymized.test`;
     await client.query(`
@@ -422,38 +448,59 @@ async function eraseUserAccount(tenantId, userId) {
           parent_name = NULL,
           parent_phone = NULL,
           room_no = NULL,
+          roll_number = NULL,
           is_active = FALSE
       WHERE id = $2
     `, [anonymizedEmail, userId]);
 
-    // 2. Anonymize requests
+    // 2. Anonymize requests & clear voice transcripts
     await client.query(`
       UPDATE requests
       SET student_name = 'Anonymized Student',
           student_email = $1,
           student_phone = NULL,
           parent_name = NULL,
-          parent_phone = NULL
+          parent_phone = NULL,
+          voice_transcript = NULL,
+          voice_extracted_details = '{}'::jsonb
       WHERE student_id = $2
     `, [anonymizedEmail, userId]);
 
-    // 3. Revoke sessions
-    await client.query('UPDATE sessions SET is_revoked = TRUE WHERE user_id = $1', [userId]);
+    // 3. Sanitize request_actions (clear any notes or payloads referencing this user)
+    await client.query(`
+      UPDATE request_actions
+      SET notes = 'Action record sanitized under privacy erasure',
+          payload = '{}'::jsonb
+      WHERE request_id IN (SELECT id FROM requests WHERE student_id = $1)
+         OR actor_id = $1
+    `, [userId]);
 
-    // 4. Append tamper-evident audit record declaring account erasure without mutating history
+    // 4. Scrub notifications containing the user's email or tracking codes
+    if (u.email) {
+      await client.query(`
+        DELETE FROM notifications
+        WHERE recipient_email = $1
+           OR html ILIKE '%' || $1 || '%'
+           OR tracking_id IN (SELECT tracking_id FROM requests WHERE student_id = $2)
+      `, [u.email, userId]);
+    }
+
+    // 5. Delete active sessions
+    await client.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+
+    // 6. Append tamper-evident audit record declaring account erasure (storing IDs only, zero PII)
     const { recordAuditEvent } = require('./audit');
     await recordAuditEvent(client, {
       tenantId,
       actorId: userId,
-      actorEmail: anonymizedEmail,
+      actorEmail: `usr_${userId}@tenant.id`,
       actorRole: 'student',
       action: 'USER_ACCOUNT_ERASED',
       resourceType: 'user',
       resourceId: userId,
       newState: {
         dpdp_action: 'account_erasure_processed',
-        anonymized_user_id: userId,
-        sanitized_email: anonymizedEmail
+        user_id: userId
       }
     });
 

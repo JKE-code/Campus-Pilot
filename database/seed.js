@@ -49,11 +49,13 @@ async function seed() {
       password: randomPassword
     };
 
-    await db.query(`
-      UPDATE users 
-      SET password_hash = $1 
-      WHERE email = $2
-    `, [hash, item.email]);
+    await db.withTenant('a0000000-0000-0000-0000-000000000001', () =>
+      db.query(`
+        UPDATE users 
+        SET password_hash = $1 
+        WHERE email = $2
+      `, [hash, item.email])
+    );
   }
 
   console.log('========================================================================');

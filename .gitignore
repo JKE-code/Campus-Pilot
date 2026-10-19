@@ -35,6 +35,7 @@ env/
 
 # Build & Cache directories
 dist/
+!frontend/dist/
 build/
 .cache/
 .next/

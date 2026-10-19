@@ -23,6 +23,8 @@ describe('Stage 0: Foundation Hardening & Verification Suite', () => {
     const credsPath = path.resolve(__dirname, '../../database/.seed_credentials.json');
     const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
 
+    await db.query('DELETE FROM auth_lockouts');
+
     const studentLogin = await request(app)
       .post('/api/auth/login')
       .send({ email: 'student@sample-college.test', password: creds['student@sample-college.test'].password });

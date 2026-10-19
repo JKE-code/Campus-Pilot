@@ -11,7 +11,7 @@ let kbText = '';
 let paragraphs = [];
 
 try {
-  const kbPath = process.env.CAMPUS_HANDBOOK_PATH || path.resolve(__dirname, '../../complete_hitam_knowledgebase.md');
+  const kbPath = process.env.CAMPUS_HANDBOOK_PATH || path.resolve(__dirname, '../../data/sample_fictional_handbook.md');
   if (fs.existsSync(kbPath)) {
     kbText = fs.readFileSync(kbPath, 'utf8');
     paragraphs = kbText.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 20);

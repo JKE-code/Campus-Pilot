@@ -1,6 +1,9 @@
 # CampusPilot AI 🎓
 > **One campus interface. Connected departments. Accountable outcomes.**
 
+> [!NOTE]
+> **Fictional Sample Data Notice:** All institutional regulations, handbooks (`data/sample_fictional_handbook.md`), user accounts, and campus entities represent a fictional institution (*Oakwood Institute of Technology*). No real college, real student, or live vendor credentials are included.
+
 CampusPilot AI is an enterprise-grade multi-tenant operations coordination, institutional knowledge engine, and service desk platform for higher education institutions. It unites students, departmental coordinators, hostel wardens, and campus leadership into a single accountable, human-in-the-loop operating system.
 
 ---
@@ -14,6 +17,7 @@ CampusPilot AI is an enterprise-grade multi-tenant operations coordination, inst
 ### 2. 📖 Grounded Multi-Tenant Knowledge Base (Stage 3)
 * **Exact Section Citations (§X.Y):** Instant deterministic answers for campus curfew (§2.1), library loan policies (§1.2), and emergency SLAs (§3.1).
 * **Zero Hallucination Fallback:** When a query is out-of-scope or unverified, the system explicitly declines and routes the student to the responsible department desk with verified contact details.
+* **Fictional Demonstration Data Notice:** All institutional regulations and policies in the sample handbook (`data/sample_fictional_handbook.md`) represent a completely fictional institution (*Oakwood Institute of Technology*). No real college or live individual data is bundled.
 
 ### 3. 📱 Cryptographically Signed QR Outpasses & Gate Scanner (Stage 4)
 * **HMAC-SHA256 Signed Gate Passes:** Warden approval generates an encrypted base64 payload.
@@ -23,9 +27,9 @@ CampusPilot AI is an enterprise-grade multi-tenant operations coordination, inst
 * Real-time metrics on SLA compliance %, average turnaround time, and FAQ deflections.
 * Live adjustable ROI calculator estimating annual institutional savings based on student population and staff wages.
 
-### 5. 🔒 DPDP 2023 Privacy & Tamper-Evident Hash Chaining
+### 5. 🔒 DPDP 2023 Controls & Tamper-Evident Hash Chaining
 * **Append-Only DB Triggers:** Database-level rules strictly prohibit updates or deletions from `audit_log` and `security_events`.
-* **Data Rights:** Self-service student personal data export (JSON) and permanent PII erasure under India's Digital Personal Data Protection (DPDP) Act 2023.
+* **Data Rights:** Self-service student personal data export (JSON) and permanent PII erasure controls (legal review pending).
 
 ---
 
@@ -37,7 +41,7 @@ CampusPilot is designed around a three-tier topology with total multi-tenant iso
 graph TD
     Client["Student & Staff Web UI (Vanilla JS + CSS, WCAG 2.2 AA)"]
     API["Express.js Hardened API Core (Dual Auth: Bearer + HttpOnly Cookie)"]
-    DB[("PostgreSQL 18.4 Engine (RLS Enforced with Non-Owner App Role)")]
+    DB[("PostgreSQL 16 Engine (postgres:16-alpine with RLS & Non-Owner Role)")]
     Outbox["Transactional Outbox Worker (SKIP LOCKED)"]
     n8n["n8n Automation Engine"]
     Voice["OmniDimension Voice Gateway"]

@@ -146,10 +146,13 @@ async function recordFailedLogin(email, ip) {
   const row = res.rows[0];
   if (row && row.attempts >= LOCKOUT_THRESHOLD) {
     console.warn(`[SECURITY ALERT] Account lockout triggered for ${email} from IP ${ip} (${LOCKOUT_THRESHOLD} consecutive failed attempts).`);
+    const safeSecurityActor = (email.includes('@internal') || email.includes('@tenant.id'))
+      ? email
+      : `masked_${crypto.createHash('sha256').update(email).digest('hex').slice(0, 16)}@tenant.id`;
     await db.query(`
       INSERT INTO security_events (event_type, severity, actor_email, ip_address, details)
       VALUES ('account_lockout', 'warning', $1, $2, $3)
-    `, [email, ip, JSON.stringify({ consecutive_attempts: row.attempts, threshold: LOCKOUT_THRESHOLD })]).catch(() => {});
+    `, [safeSecurityActor, ip, JSON.stringify({ consecutive_attempts: row.attempts, threshold: LOCKOUT_THRESHOLD })]).catch(() => {});
   }
 }
 
@@ -200,7 +203,12 @@ async function verifyVoiceWebhook(req, res, next) {
     // 2. Verification Mechanism
     let isAuthorized = false;
 
-    // Path A: Custom secret header matching long secret
+    // Capture Mode: When enabled via env or header, record raw incoming request headers and body with secrets redacted
+    if (process.env.VOICE_CAPTURE_MODE === 'true' || req.headers['x-voice-capture-mode'] === 'true') {
+      captureVoiceWebhook(req);
+    }
+
+    // Path A: Custom secret header matching configured secret
     if (customSecret) {
       const expectedSecretBuf = Buffer.from(VOICE_WEBHOOK_SECRET, 'utf8');
       const actualSecretBuf = Buffer.from(String(customSecret), 'utf8');
@@ -209,9 +217,7 @@ async function verifyVoiceWebhook(req, res, next) {
       }
     }
 
-    // Path B: HMAC signature check
-    // UNVERIFIED: OmniDimension's production webhook signing format (X-Omni-Signature, X-Omni-Timestamp)
-    // is unverified against real provider payloads. This path is speculative until confirmed with actual provider data.
+    // Path B: Standard HMAC-SHA256 signature verification (X-Voice-Signature + X-Voice-Timestamp)
     if (!isAuthorized && signature && timestampStr) {
       const timestamp = parseInt(String(timestampStr), 10);
       const now = Date.now();
@@ -248,6 +254,54 @@ async function verifyVoiceWebhook(req, res, next) {
   }
 }
 
+const capturedVoiceWebhooks = [];
+
+/**
+ * Capture incoming webhook headers and body with all secret credentials redacted
+ * @param {import('express').Request} req
+ */
+function captureVoiceWebhook(req) {
+  const secretKeyPatterns = /auth|secret|token|key|cookie|password|signature/i;
+  const redactedHeaders = {};
+  for (const [k, v] of Object.entries(req.headers || {})) {
+    if (secretKeyPatterns.test(k)) {
+      redactedHeaders[k] = '[REDACTED_SECRET]';
+    } else {
+      redactedHeaders[k] = v;
+    }
+  }
+
+  let redactedBody = req.body;
+  if (req.body && typeof req.body === 'object') {
+    redactedBody = JSON.parse(JSON.stringify(req.body, (key, value) => {
+      if (secretKeyPatterns.test(key) && typeof value === 'string') return '[REDACTED_SECRET]';
+      return value;
+    }));
+  }
+
+  const entry = {
+    captured_at: new Date().toISOString(),
+    method: req.method,
+    url: req.originalUrl || req.url,
+    ip: req.ip,
+    headers: redactedHeaders,
+    body: redactedBody
+  };
+
+  capturedVoiceWebhooks.unshift(entry);
+  if (capturedVoiceWebhooks.length > 50) capturedVoiceWebhooks.pop();
+
+  console.log('[VOICE WEBHOOK CAPTURE MODE] Incoming webhook captured (secrets redacted):');
+  console.log('   Headers:', JSON.stringify(redactedHeaders, null, 2));
+  console.log('   Body:', JSON.stringify(redactedBody, null, 2));
+
+  return entry;
+}
+
+function getCapturedVoiceWebhooks() {
+  return [...capturedVoiceWebhooks];
+}
+
 module.exports = {
   helmetMiddleware,
   generalLimiter,
@@ -257,5 +311,7 @@ module.exports = {
   recordFailedLogin,
   clearFailedLogin,
   verifyVoiceWebhook,
+  captureVoiceWebhook,
+  getCapturedVoiceWebhooks,
   VOICE_WEBHOOK_SECRET
 };

@@ -67,8 +67,11 @@ const {
   checkLoginLockout,
   recordFailedLogin,
   clearFailedLogin,
-  verifyVoiceWebhook
+  verifyVoiceWebhook,
+  captureVoiceWebhook,
+  getCapturedVoiceWebhooks
 } = require('./middleware/security');
+const compression = require('compression');
 const { validateTransition } = require('./services/state_machine');
 const { defineRoute } = require('./middleware/validate');
 
@@ -99,8 +102,9 @@ const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'http://localhost:5678/we
 const isDemoMode = () => process.env.DEMO_MODE === 'true';
 
 // -----------------------------------------------------------------------------
-// Core Middleware Pipeline
+// Core Middleware Pipeline (Gzip Compression, Security Headers, Sessions)
 // -----------------------------------------------------------------------------
+app.use(compression());
 app.use(helmetMiddleware);
 app.use(cookieParser());
 
@@ -325,10 +329,11 @@ app.post('/api/auth/refresh', validateBody(refreshSchema), async (req, res, next
       console.warn(`[SECURITY ALERT] Refresh token reuse detected for family ${session.family_id}! Revoking entire session family.`);
       await db.query('UPDATE sessions SET is_revoked = TRUE WHERE family_id = $1', [session.family_id]);
       try {
+        const safeActor = session.user_id ? `usr_${session.user_id}@tenant.id` : 'unknown@tenant.id';
         await db.query(`
           INSERT INTO security_events (tenant_id, event_type, severity, actor_email, ip_address, details)
           VALUES ($1, 'token_reuse_detected', 'critical', $2, $3, $4)
-        `, [session.tenant_id, session.email, req.ip, JSON.stringify({ family_id: session.family_id, revoked_session_id: session.id })]);
+        `, [session.tenant_id, safeActor, req.ip, JSON.stringify({ family_id: session.family_id, revoked_session_id: session.id })]);
       } catch (e) {}
 
       return res.status(401).json({
@@ -1000,7 +1005,7 @@ app.post('/api/requests', authenticate, validateBody(createRequestSchema), async
     await auditService.recordAuditEvent(client, {
       tenantId: req.tenant_id,
       actorId: req.user.id,
-      actorEmail: student_email,
+      actorEmail: `usr_${req.user.id}@tenant.id`,
       actorRole: req.user.role || 'student',
       action: 'ticket_created',
       resourceType: 'request',
@@ -1262,6 +1267,25 @@ app.post('/api/voice/callback', verifyVoiceWebhook, validateBody(voiceCallbackSc
   } catch (err) {
     next(err);
   }
+});
+
+// Capture Mode Inspection Endpoints (Inspect raw incoming voice calls without signature verification)
+app.post('/api/voice/capture-webhook', (req, res) => {
+  const entry = captureVoiceWebhook(req);
+  res.json({
+    status: 'CAPTURED',
+    message: 'Raw incoming voice webhook payload and headers captured successfully for inspection.',
+    captured_at: entry.captured_at,
+    entry
+  });
+});
+
+app.get('/api/voice/capture-logs', (req, res) => {
+  res.json({
+    status: 'success',
+    count: getCapturedVoiceWebhooks().length,
+    captured: getCapturedVoiceWebhooks()
+  });
 });
 
 // Demo Mode Simulation Endpoints (Disabled when DEMO_MODE != true or in production; restricted to sample tenant and warden/admin roles)

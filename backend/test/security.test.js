@@ -42,6 +42,7 @@ describe('CampusPilot Security, Concurrency & RBAC Test Suite', () => {
     });
     try {
       await adminCleanup.query(`
+        DELETE FROM auth_lockouts;
         DELETE FROM request_actions WHERE request_id NOT IN (SELECT id FROM requests WHERE tracking_id IN ('CP-2026-1041', 'CP-2026-1042', 'CP-2026-1043', 'CP-2026-1044', 'CP-2026-1045'));
         DELETE FROM requests WHERE tracking_id NOT IN ('CP-2026-1041', 'CP-2026-1042', 'CP-2026-1043', 'CP-2026-1044', 'CP-2026-1045');
         UPDATE tracking_counters SET current_val = 1045 WHERE counter_type = 'requests';

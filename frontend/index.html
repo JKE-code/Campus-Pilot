@@ -9,9 +9,10 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"></noscript>
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles/app.css" />
+  <link rel="stylesheet" href="dist/app.min.css" />
 </head>
 <body>
 
@@ -115,9 +116,9 @@
         <!-- Active Process Card -->
         <div class="pane-card" id="process-monitor-card">
           <div class="pane-card-title">
-            <h3>
+            <h2 style="font-size: 0.95rem; font-weight: 700; margin: 0;">
               <span aria-hidden="true">⚡</span> Autonomous Request Monitor
-            </h3>
+            </h2>
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <div class="active-pulse-dot" title="Live Pipeline Active"></div>
               <button class="pane-close-btn" id="close-left-pane-btn" title="Collapse Process Monitor" aria-label="Close process monitor">&times;</button>
@@ -134,7 +135,7 @@
             <div class="live-process-step" id="step-n8n">
               <div class="step-icon-badge">1</div>
               <div class="step-details">
-                <h4>Pipeline Trigger</h4>
+                <h3 style="font-size: 0.84rem; font-weight: 600; margin: 0;">Pipeline Trigger</h3>
                 <p id="step-n8n-desc">Intake pipeline initialized</p>
               </div>
             </div>
@@ -143,7 +144,7 @@
             <div class="live-process-step" id="step-intent">
               <div class="step-icon-badge">2</div>
               <div class="step-details">
-                <h4>Intent & Entity Classifier</h4>
+                <h3 style="font-size: 0.84rem; font-weight: 600; margin: 0;">Intent & Entity Classifier</h3>
                 <p id="step-intent-desc">Parsing context & category</p>
               </div>
             </div>
@@ -152,7 +153,7 @@
             <div class="live-process-step" id="step-raising">
               <div class="step-icon-badge">3</div>
               <div class="step-details">
-                <h4>Cluster & Routing Analysis</h4>
+                <h3 style="font-size: 0.84rem; font-weight: 600; margin: 0;">Cluster & Routing Analysis</h3>
                 <p id="step-raising-desc">Assigning department & SLA</p>
               </div>
             </div>
@@ -161,7 +162,7 @@
             <div class="live-process-step" id="step-raised">
               <div class="step-icon-badge">4</div>
               <div class="step-details">
-                <h4>Request Created</h4>
+                <h3 style="font-size: 0.84rem; font-weight: 600; margin: 0;">Request Created</h3>
                 <p id="step-raised-desc">Ticket logged with tracking ID</p>
               </div>
             </div>
@@ -170,7 +171,7 @@
             <div class="live-process-step" id="step-voice">
               <div class="step-icon-badge">5</div>
               <div class="step-details">
-                <h4>Voice Follow-up (If Needed)</h4>
+                <h3 style="font-size: 0.84rem; font-weight: 600; margin: 0;">Voice Follow-up (If Needed)</h3>
                 <p id="step-voice-desc">Details verification dispatch</p>
               </div>
             </div>
@@ -179,7 +180,7 @@
             <div class="live-process-step" id="step-solve">
               <div class="step-icon-badge">6</div>
               <div class="step-details">
-                <h4>In Progress / Resolving</h4>
+                <h3 style="font-size: 0.84rem; font-weight: 600; margin: 0;">In Progress / Resolving</h3>
                 <p id="step-solve-desc">Assigned campus crew on site</p>
               </div>
             </div>
@@ -198,9 +199,9 @@
         <!-- Recent Requests Card -->
         <div class="pane-card">
           <div class="pane-card-title">
-            <h3>
+            <h2 style="font-size: 0.95rem; font-weight: 700; margin: 0;">
               <span aria-hidden="true">📋</span> Active & Recent Requests
-            </h3>
+            </h2>
             <span style="font-size: 0.72rem; color: var(--text-muted);">Click to Inspect</span>
           </div>
 
@@ -663,14 +664,14 @@
               <span>Student Population (Headcount):</span>
               <strong id="roi-student-count-lbl">4,500 students</strong>
             </div>
-            <input type="range" id="roi-student-slider" class="roi-range-input" min="500" max="25000" step="500" value="4500" />
+            <input type="range" id="roi-student-slider" class="roi-range-input" min="500" max="25000" step="500" value="4500" aria-label="Student Population Headcount" />
           </div>
           <div class="roi-slider-group">
             <div class="roi-slider-label">
               <span>Operations Staff Hourly Wage (USD):</span>
               <strong id="roi-wage-lbl">$24 / hr</strong>
             </div>
-            <input type="range" id="roi-wage-slider" class="roi-range-input" min="15" max="60" step="1" value="24" />
+            <input type="range" id="roi-wage-slider" class="roi-range-input" min="15" max="60" step="1" value="24" aria-label="Operations Staff Hourly Wage USD" />
           </div>
           <div class="roi-savings-hero">
             <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Estimated Annual Operational Savings</div>
@@ -851,7 +852,7 @@
   <!-- Accessible Toast Notification Container -->
   <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
 
-  <script src="scripts/app.js"></script>
+  <script defer src="dist/app.min.js"></script>
 </body>
 
 </html>
