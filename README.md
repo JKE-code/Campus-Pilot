@@ -1,158 +1,136 @@
 # CampusPilot AI 🎓
-
 > **One campus interface. Connected departments. Accountable outcomes.**
 
-CampusPilot AI is an intelligent campus operations coordination and service desk platform that bridges students, faculty coordinators, student committees, and college management into a unified automated workflow engine powered by **n8n**.
+CampusPilot AI is an enterprise-grade multi-tenant operations coordination, institutional knowledge engine, and service desk platform for higher education institutions. It unites students, departmental coordinators, hostel wardens, and campus leadership into a single accountable, human-in-the-loop operating system.
 
 ---
 
-## 🌟 The Problem
+## 🌟 Key Capabilities & Differentiators
 
-Higher education institutions often suffer from fragmented, multi-channel communication:
-- **Fragmented Channels:** Disconnected emails, scattered WhatsApp groups, unstructured office visits.
-- **Manual Coordination:** Faculty spend hours redirecting messages, chasing missing details, and sending repetitive status updates.
-- **Weak Accountability:** Requests fall through the cracks without transparent ownership or automated SLA escalation.
-- **Limited Operational Visibility:** Administration lacks real-time insight into recurring problems (e.g. repeated hostel water supply breakdowns).
+### 1. 🛡️ Strict Human Authority (Zero AI Auto-Approvals)
+* **Outpass & Gate Clearances:** Automated voice agents verify guardian consent via staff-verified parent records, but final approval requires human hostel warden sign-off.
+* **Campus Event Clearance:** 3-tier sequential review (Faculty Advisor ➔ Academic Dean ➔ Venue Administrator).
 
----
+### 2. 📖 Grounded Multi-Tenant Knowledge Base (Stage 3)
+* **Exact Section Citations (§X.Y):** Instant deterministic answers for campus curfew (§2.1), library loan policies (§1.2), and emergency SLAs (§3.1).
+* **Zero Hallucination Fallback:** When a query is out-of-scope or unverified, the system explicitly declines and routes the student to the responsible department desk with verified contact details.
 
-## 🚀 The Solution: Three Connected Layers
+### 3. 📱 Cryptographically Signed QR Outpasses & Gate Scanner (Stage 4)
+* **HMAC-SHA256 Signed Gate Passes:** Warden approval generates an encrypted base64 payload.
+* **Mobile Gate Scanner (`/gate-scan`):** Security personnel verify student exit and entry permissions with instant tamper detection and expiration enforcement.
 
-```
-+-----------------------------------------------------------------------------------------+
-|                              A. AI RECEPTIONIST (STUDENT)                               |
-|  - Conversational intake grounded in verified campus FAQs                               |
-|  - Guided request submission (Complaints, Suggestions, Event Proposals)                |
-+--------------------------------------------+--------------------------------------------+
-                                             |
-                                             v
-+-----------------------------------------------------------------------------------------+
-|                               B. CAMPUS WORKFLOW ENGINE (n8n)                           |
-|  - Request validation, tracking ID generation (CP-2026-XXXX)                            |
-|  - Deterministic routing to authorized departments                                      |
-|  - Adaptive Voice-to-Resolution clarification calls                                     |
-|  - Campus Incident Intelligence (duplicate detection & clustering)                      |
-|  - Scheduled SLA escalations & email notifications                                      |
-+--------------------------------------------+--------------------------------------------+
-                                             |
-                                             v
-+-----------------------------------------------------------------------------------------+
-|                            C. OPERATIONS WORKSPACE (STAFF & ADMIN)                      |
-|  - Departmental Coordinator task backlogs with voice call transcripts                   |
-|  - Administrative dashboard: SLA compliance, incident clusters, audit logs              |
-+-----------------------------------------------------------------------------------------+
-```
+### 4. 📊 Operations Analytics & Interactive ROI Calculator (Stage 4)
+* Real-time metrics on SLA compliance %, average turnaround time, and FAQ deflections.
+* Live adjustable ROI calculator estimating annual institutional savings based on student population and staff wages.
+
+### 5. 🔒 DPDP 2023 Privacy & Tamper-Evident Hash Chaining
+* **Append-Only DB Triggers:** Database-level rules strictly prohibit updates or deletions from `audit_log` and `security_events`.
+* **Data Rights:** Self-service student personal data export (JSON) and permanent PII erasure under India's Digital Personal Data Protection (DPDP) Act 2023.
 
 ---
 
-## 💎 Signature & Differentiating Features
+## 🏗️ Architecture Topology
 
-### 1. 📞 Adaptive Voice-to-Resolution
-CampusPilot avoids making indiscriminate outbound calls. Instead, the workflow evaluates:
-- Student's explicit consent (`call_consent = true`).
-- Whether essential details are missing or ambiguous (e.g. room number or specific block).
-- Urgency level (critical issues escalate immediately without delay).
-- When triggered, an AI voice agent calls the student, collects targeted details, and sends a structured payload back to an n8n webhook to update the ticket automatically.
+CampusPilot is designed around a three-tier topology with total multi-tenant isolation:
 
-### 2. 🧠 Campus Incident Intelligence
-Detects spatial and temporal clusters of complaints (e.g. multiple complaints from Hostel 3 about water supply within 6 hours). Associates individual student tickets under a single **Operational Incident** (`INC-2026-XXXX`), allowing maintenance teams to broadcast unified updates rather than handling redundant tickets.
+```mermaid
+graph TD
+    Client["Student & Staff Web UI (Vanilla JS + CSS, WCAG 2.2 AA)"]
+    API["Express.js Hardened API Core (Dual Auth: Bearer + HttpOnly Cookie)"]
+    DB[("PostgreSQL 18.4 Engine (RLS Enforced with Non-Owner App Role)")]
+    Outbox["Transactional Outbox Worker (SKIP LOCKED)"]
+    n8n["n8n Automation Engine"]
+    Voice["OmniDimension Voice Gateway"]
 
-### 3. 🛡️ Shared Lifecycle & Human-in-the-Loop Governance
+    Client -->|Strict CSP REST & CSRF| API
+    API -->|Transaction Context: app.current_tenant_id| DB
+    API --> Outbox
+    Outbox -->|HMAC Webhooks| n8n
+    Outbox -->|HMAC Relay| Voice
 ```
-Submitted ➔ Triaged ➔ Assigned ➔ In Progress ➔ Resolved ➔ Student Confirmed
-       \               /                             \
-     Awaiting Details (Voice)                   Reopened (Student disputes)
-```
-- **Human Authority:** Financial decisions, venue approvals, and disciplinary matters require verified human authorization; AI assists but never signs off.
-- **Full Auditability:** Every status change, voice call result, and notification is recorded in an immutable `request_actions` table.
+
+For complete technical diagrams and sequence flows, see [docs/architecture.md](file:///Users/atoshi/Desktop/Campus-Pilot/docs/architecture.md).  
+For the 16-table database schema and RLS policies, see [docs/database_erd.md](file:///Users/atoshi/Desktop/Campus-Pilot/docs/database_erd.md).  
+For the RESTful API matrix, see [docs/api_specification.md](file:///Users/atoshi/Desktop/Campus-Pilot/docs/api_specification.md).  
+For the compliance and security runbook, see [docs/security_and_privacy.md](file:///Users/atoshi/Desktop/Campus-Pilot/docs/security_and_privacy.md).
 
 ---
 
-## 🏗️ Repository Architecture
-
-```
-Campus-Pilot/
-├── README.md                      # Project documentation and guide
-├── architecture&Structure.md      # Deep-dive system architecture & DB schemas
-├── proceeding.md                  # Comprehensive development roadmap & task checklist
-├── project_understanding.md       # Original problem statement & requirements
-├── complete_hitam_knowledgebase.md# Grounded campus knowledge base (HITAM)
-├── docker-compose.yml             # Orchestration for n8n & PostgreSQL
-├── .gitignore                     # Git ignore rules
-├── .env.example                   # Environment configuration template
-│
-├── workflows/                     # Version-controlled n8n workflows
-│   ├── README.md                  # Workflow catalog
-│   ├── 01_intake_and_triage.json
-│   ├── 02_voice_clarification_callback.json
-│   ├── 03_assignment_and_notifications.json
-│   ├── 04_incident_clustering.json
-│   ├── 05_sla_escalation_cron.json
-│   └── 06_human_approval_and_closure.json
-│
-├── database/                      # Relational schema and initial seeds
-│   └── schema.sql                 # PostgreSQL DDL (requests, incidents, users, audit)
-│
-├── frontend/                      # Student Receptionist & Operations Workspace
-│   ├── README.md
-│   ├── package.json
-│   └── index.html
-│
-└── backend/                       # Backend services & webhook bridges
-    ├── README.md
-    ├── package.json
-    └── src/
-        └── server.js
-```
-
----
-
-## ⚡ Quickstart
+## ⚡ Quickstart & Local Development
 
 ### Prerequisites
-- [Docker](https://www.docker.com/) & Docker Compose
-- Node.js v18+ (for frontend & backend development)
+* [Docker](https://www.docker.com/) & Docker Compose
+* Node.js v20+ or [Bun](https://bun.sh/)
+* PostgreSQL 16+ (or run via Docker Compose)
 
-### 1. Launch Infrastructure
-Start the persistent n8n and PostgreSQL containers:
+### 1. Launch All Services via Docker Compose
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
-- **n8n Web UI**: Accessible at [http://localhost:5678](http://localhost:5678)
-- **PostgreSQL**: Accessible at `localhost:5432` (`db: campuspilot`, `user: postgres`, `password: postgrespassword`)
+This boots:
+* **PostgreSQL 16**: Port `5432` with automatic role and schema migrations.
+* **CampusPilot Backend**: Port `3000` with production boot guards and healthcheck.
+* **CampusPilot Frontend**: Port `8080` (Nginx Alpine with strict CSP headers).
+* **n8n Workflow Engine**: Port `5678`.
 
-### 2. Verify Database Initialization
-The `database/schema.sql` automatically applies on initial container launch, creating:
-- `requests`
-- `incidents`
-- `request_actions`
-- `users`
-- `knowledge_base`
-
-To inspect via terminal:
+### 2. Local Manual Development Setup
 ```bash
-docker exec -it campuspilot_postgres psql -U postgres -d campuspilot -c "\dt"
-```
+# 1. Install dependencies
+cd backend && npm install
+cd ../frontend && npm install
 
-### 3. Import n8n Workflows
-1. Open n8n at [http://localhost:5678](http://localhost:5678).
-2. Go to **Workflows ➔ Import from File**.
-3. Import the workflows from the `./workflows/` folder.
+# 2. Run Database Migration & Roles Setup
+node backend/scripts/migrate.js
+
+# 3. Start Backend Server
+npm --prefix backend run dev
+
+# 4. Run Test Suite (79 Tests Green)
+npm --prefix backend test
+```
 
 ---
 
-## 📊 Core Demonstration Scenarios
+## 🔐 Environment Configuration (.env)
 
-1. **Hostel Water Supply Breakdown (Primary Scenario)**:
-   - Student submits vague complaint ➔ Adaptive Voice agent clarifies wing & floor ➔ Ticket enriched.
-   - 2nd student reports same issue ➔ Incident Intelligence groups into `INC-HOSTEL-001`.
-   - Coordinator resolves incident ➔ Both students notified ➔ Student confirms resolution.
-2. **Library Seating Suggestion (Secondary Scenario A)**:
-   - Evaluated and routed to Academic Committee coordinator with human review log.
-3. **SSG Student Event Proposal (Secondary Scenario B)**:
-   - Routed to Student Senate and Faculty Advisor for approval before assignment.
+| Variable | Description | Production Default / Requirement |
+| :--- | :--- | :--- |
+| `NODE_ENV` | Runtime environment mode | `production` |
+| `PORT` | API server port | `3000` |
+| `POSTGRES_HOST` | Database host | `postgres` (or `localhost`) |
+| `POSTGRES_PORT` | Database port | `5432` |
+| `POSTGRES_DB` | Database name | `campuspilot` |
+| `POSTGRES_USER` | Runtime app user (non-owner) | `campuspilot_app` |
+| `POSTGRES_PASSWORD`| Runtime app password | Secure 32-char string |
+| `REQUIRE_REAL_DB` | Enforce real PostgreSQL (no pg-mem) | `true` |
+| `DEMO_MODE` | Allow development simulation routes | `false` in production |
+| `JWT_SECRET` | 256-bit secret for session tokens | $\ge 32$ chars random string |
+| `VOICE_HMAC_SECRET`| Secret for OmniDimension callbacks | $\ge 32$ chars random string |
+| `OUTPASS_HMAC_SECRET`| Secret for QR gate pass signatures | $\ge 32$ chars random string |
+| `CORS_ALLOWLIST` | Comma-separated allowed web origins | e.g. `https://campus.oakwood.edu` |
 
 ---
 
-## 📄 License
-This project was developed for the n8n Challenge.
+## 🧪 Comprehensive Verification Suite
+
+CampusPilot includes 79 automated Vitest tests validating every security, concurrency, multi-tenant, and product capability:
+
+```bash
+bun run --cwd backend test
+```
+* **`test/stage0_foundation.test.js`** (10 tests): Real PostgreSQL 18.4 connection, non-owner role RLS, pooled connection isolation, refresh token grace windows.
+* **`test/phase1_hardening.test.js`** (10 tests): SHA-256 hash chaining under 20 parallel writes, transactional outbox with SKIP LOCKED, SLA watchdog, cross-tenant leak checks.
+* **`test/security.test.js`** (28 tests): 50 parallel concurrent submissions, CSRF protection, session family revocation, voice HMAC replay prevention, account lockout.
+* **`test/stage3_knowledge_base.test.js`** (12 tests): Markdown chunking, versioned ingestion, exact §X.Y citations, out-of-domain honest fallback, RLS isolation.
+* **`test/stage4_product.test.js`** (19 tests): Onboarding wizard, staff CSV bulk import, super-admin metrics, cryptographic QR gate scan, 3-tier event approvals, DPDP consent & account erasure.
+
+---
+
+## 📄 Production Deployment Checklist
+
+1. [x] Real PostgreSQL with `campuspilot_app` non-owner user (no superuser access).
+2. [x] Row-Level Security enabled on all 16 application tables.
+3. [x] Strict Content Security Policy (`script-src 'self'`, `script-src-attr 'none'`).
+4. [x] All demo data uses fictional Oakwood Institute dataset (no real PII).
+5. [x] Production boot guard fails on `DEMO_MODE=true` or missing secrets.
+6. [x] Dockerfile and Docker Compose with healthchecks configured.

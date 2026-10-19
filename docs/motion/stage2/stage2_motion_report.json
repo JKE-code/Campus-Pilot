@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-10-18T13:17:05.143Z",
+  "gate": "GATE 2: MOTION & ACCESSIBLE PERFORMANCE",
+  "performance": {
+    "score": 96,
+    "fcp_ms": 120,
+    "dom_interactive_ms": 2673,
+    "dom_content_loaded_ms": 2706,
+    "load_complete_ms": 3007,
+    "meets_90_target": true
+  },
+  "motion_specifications": {
+    "micro_interactions": "180ms cubic-bezier(0.16, 1, 0.3, 1)",
+    "drawer_transitions": "420ms cubic-bezier(0.16, 1, 0.3, 1)",
+    "prefers_reduced_motion_honored": true,
+    "non_blocking_verified": true
+  },
+  "frame_sequences_captured": [
+    "01_chat_stream (4 frames)",
+    "02_stepper_timeline (2 frames)",
+    "03_operations_kanban (2 frames)",
+    "04_voice_waveform (4 frames)",
+    "05_three_tier_diagram (3 frames)"
+  ]
+}

@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  test_postgres:
+    image: postgres:16-alpine
+    container_name: campuspilot_test_postgres
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_secure_password
+      POSTGRES_DB: campuspilot_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./database/00_init_roles.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed_data.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d campuspilot_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    networks:
+      - campuspilot_test_net
+
+  backend_test:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.test
+    container_name: campuspilot_backend_test
+    environment:
+      NODE_ENV: test
+      REQUIRE_REAL_DB: "true"
+      POSTGRES_HOST: test_postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: campuspilot_app
+      POSTGRES_PASSWORD: app_secure_password
+      POSTGRES_DB: campuspilot_test
+      JWT_SECRET: test_jwt_super_secret_for_ci_environment_32chars
+      VOICE_WEBHOOK_SECRET: test_voice_webhook_secret_key_32chars
+      PORT: 5001
+    depends_on:
+      test_postgres:
+        condition: service_healthy
+    networks:
+      - campuspilot_test_net
+
+networks:
+  campuspilot_test_net:
+    driver: bridge

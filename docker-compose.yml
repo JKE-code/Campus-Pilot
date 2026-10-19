@@ -13,7 +13,55 @@ services:
       - "5432:5432"
     volumes:
       - campuspilot_pgdata:/var/lib/postgresql/data
+      - ./database/00_init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql:ro
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d campuspilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - campuspilot_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campuspilot_backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=campuspilot_app
+      - POSTGRES_PASSWORD=campuspilot_app_secure_pass_2026
+      - POSTGRES_DB=campuspilot
+      - REQUIRE_REAL_DB=true
+      - DEMO_MODE=false
+      - JWT_SECRET=campuspilot_prod_jwt_secret_key_32chars_min!
+      - VOICE_HMAC_SECRET=campuspilot_prod_voice_hmac_secret_32char!
+      - OUTPASS_HMAC_SECRET=campuspilot_prod_voice_hmac_secret_32char!
+      - CORS_ALLOWLIST=http://localhost,http://localhost:8080,http://frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - campuspilot_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: campuspilot_frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
     networks:
       - campuspilot_net
 
@@ -39,7 +87,8 @@ services:
     networks:
       - campuspilot_net
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
 volumes:
   campuspilot_pgdata:

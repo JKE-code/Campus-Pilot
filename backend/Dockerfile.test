@@ -1,0 +1,17 @@
+FROM oven/bun:1.1-alpine
+
+WORKDIR /app
+
+# Copy root configurations and database assets
+COPY package*.json ./
+COPY database ./database
+
+# Copy backend
+COPY backend/package*.json ./backend/
+WORKDIR /app/backend
+RUN bun install
+
+COPY backend ./
+
+# Run test suite with strict real DB requirement
+CMD ["bun", "test"]

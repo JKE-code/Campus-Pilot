@@ -4,6 +4,7 @@
 !.env.example
 *.pem
 *.key
+.seed_credentials.json
 
 # Operating System
 Thumbs.db
@@ -41,6 +42,7 @@ out/
 
 # Docker volumes & local database mounts
 postgres_data/
+.postgres_data/
 campuspilot_pgdata/
 campuspilot_n8n_data/
 n8n_data/

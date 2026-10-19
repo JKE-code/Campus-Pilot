@@ -1,0 +1,11 @@
+{
+  "name": "campuspilot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "npm --prefix backend test",
+    "migrate": "npm --prefix backend run migrate",
+    "dev": "npm --prefix backend run dev",
+    "start": "npm --prefix backend start"
+  }
+}
