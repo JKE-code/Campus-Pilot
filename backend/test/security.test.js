@@ -38,6 +38,7 @@ describe('CampusPilot Security, Concurrency & RBAC Test Suite', () => {
       host: process.env.POSTGRES_HOST || 'localhost',
       port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
       user: 'postgres',
+      password: process.env.POSTGRES_ADMIN_PASSWORD || process.env.POSTGRES_PASSWORD || 'test_password',
       database: process.env.POSTGRES_DB || 'campuspilot'
     });
     try {

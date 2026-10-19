@@ -30,10 +30,11 @@ describe('Phase 1: Architecture, Multi-Tenancy & Cryptographic Verification', ()
   beforeAll(async () => {
     testAuditTenantId = crypto.randomUUID();
     adminPool = new Pool({
-      host: 'localhost',
-      port: 5432,
+      host: process.env.POSTGRES_HOST || 'localhost',
+      port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
       user: 'postgres',
-      database: 'campuspilot'
+      password: process.env.POSTGRES_ADMIN_PASSWORD || process.env.POSTGRES_PASSWORD || 'test_password',
+      database: process.env.POSTGRES_DB || 'campuspilot'
     });
 
     await adminPool.query(`

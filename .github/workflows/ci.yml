@@ -66,6 +66,7 @@ jobs:
           POSTGRES_DB: campuspilot
           POSTGRES_USER: campuspilot_app
           POSTGRES_PASSWORD: test_password
+          POSTGRES_ADMIN_PASSWORD: test_password
           JWT_SECRET: campuspilot_test_jwt_secret_min_32_characters_long!
           VOICE_WEBHOOK_SECRET: test_voice_webhook_secret_key_32chars
         run: |
@@ -80,6 +81,7 @@ jobs:
           POSTGRES_DB: campuspilot
           POSTGRES_USER: campuspilot_app
           POSTGRES_PASSWORD: test_password
+          POSTGRES_ADMIN_PASSWORD: test_password
           JWT_SECRET: campuspilot_test_jwt_secret_min_32_characters_long!
           VOICE_WEBHOOK_SECRET: test_voice_webhook_secret_key_32chars
         run: |
