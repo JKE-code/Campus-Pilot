@@ -594,7 +594,7 @@ function renderSourceAccordion(source, excerpt = null) {
   const details = excerpt || 'Grounding verified against institutional policies, timings, and official campus handbook documentation.';
   return `
     <div class="chat-source-accordion">
-      <button type="button" class="source-header-btn" onclick="this.parentElement.classList.toggle('expanded')" aria-expanded="false">
+      <button type="button" class="source-header-btn" aria-expanded="false">
         <span>📖 Source: <strong>${escapeHtml(source)}</strong></span>
         <span class="source-chevron">▶</span>
       </button>
@@ -1893,7 +1893,7 @@ async function fetchDrawerData() {
                   ${escapeHtml(t.follow_up_actions?.[0]?.notes || 'Voice call dispatch failed. Manual coordinator follow-up required.')}
                 </div>
                 <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                  <button class="intent-chip" style="padding: 0.25rem 0.6rem; font-size: 0.75rem; background: #b91c1c; color: white;" onclick="window.staffAction('${escapeHtml(t.tracking_id)}', 'start_progress')">Mark Contacted & In Progress</button>
+                  <button class="intent-chip" style="padding: 0.25rem 0.6rem; font-size: 0.75rem; background: #b91c1c; color: white;" data-action="start_progress" data-tracking-id="${escapeHtml(t.tracking_id)}">Mark Contacted & In Progress</button>
                 </div>
               `;
               followUpContainer.appendChild(card);
@@ -2217,5 +2217,28 @@ if (btnRequestErasure) {
     }
   });
 }
+
+// Delegated event listener for CSP script-src-attr 'none' compliance
+document.addEventListener('click', (e) => {
+  // @ts-ignore
+  const target = e.target;
+  if (!target) return;
+
+  const btn = target.closest('.source-header-btn');
+  if (btn && btn.parentElement) {
+    btn.parentElement.classList.toggle('expanded');
+    const isExpanded = btn.parentElement.classList.contains('expanded');
+    btn.setAttribute('aria-expanded', String(isExpanded));
+  }
+
+  const followUpBtn = target.closest('[data-action="start_progress"]');
+  if (followUpBtn && followUpBtn.dataset.trackingId) {
+    // @ts-ignore
+    if (typeof window.staffAction === 'function') {
+      // @ts-ignore
+      window.staffAction(followUpBtn.dataset.trackingId, 'start_progress');
+    }
+  }
+});
 
 
