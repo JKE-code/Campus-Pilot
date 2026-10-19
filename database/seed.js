@@ -6,11 +6,22 @@
  * REFUSES TO RUN IN PRODUCTION.
  */
 
-require('dotenv').config();
-const crypto = require('crypto');
-const bcrypt = require('bcryptjs');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+// Resolve dependencies from backend/node_modules if run outside backend
+const resolveModule = (name) => {
+  try {
+    return require(name);
+  } catch (e) {
+    return require(path.resolve(__dirname, '../backend/node_modules', name));
+  }
+};
+
+const dotenv = resolveModule('dotenv');
+dotenv.config({ path: path.resolve(__dirname, '../backend/.env') });
+const bcrypt = resolveModule('bcryptjs');
 const db = require('../backend/src/db');
 
 if (process.env.NODE_ENV === 'production') {
