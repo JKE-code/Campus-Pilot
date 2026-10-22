@@ -126,10 +126,10 @@ async function ensureAuthenticated() {
 let currentStudent = {
   name: 'Alex Student',
   email: 'student@sample-college.test',
-  phone: '+91 9999999999',
+  phone: "",
   roll: 'CS-2026-042',
   parent_name: 'Jordan Parent',
-  parent_phone: '+15550100020',
+  parent_phone: "",
   dept: 'Computer Science & Engineering',
   hostel: 'Hostel Block A, Room 302'
 };
@@ -3153,7 +3153,7 @@ function renderAdminOutpassesTable() {
         <div style="font-size: 0.7rem; color: #64748B;">Return: 2 Days</div>
       </td>
       <td>
-        <div>${escapeHtml(p.parent_phone || '+91 98765 43210')}</div>
+        <div>${escapeHtml(p.parent_phone || 'Not provided')}</div>
         <div style="font-size: 0.7rem; color: #64748B;">Guardian: ${escapeHtml(p.parent_name || 'Jordan Parent')}</div>
       </td>
       <td>
