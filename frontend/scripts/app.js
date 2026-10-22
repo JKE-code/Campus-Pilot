@@ -1,6 +1,13 @@
 /**
- * CampusPilot AI — Single-Page Chatbot Controller & Left Process Monitor
+ * CampusPilot AI — Multimodal 50/50 Voice AI Receptionist & Chatbot Controller
  */
+import { ThreeAvatar } from './threeAvatar.js';
+import { VoiceEngine } from './voiceEngine.js';
+
+let threeAvatarInstance = null;
+let voiceEngineInstance = null;
+window.threeAvatar = null;
+window.voiceEngine = null;
 
 const API_BASE = '/api';
 
@@ -73,9 +80,46 @@ async function ensureAuthenticated() {
           hostel: `${data.user.hostel_block || 'Hostel Block A'}, Room ${data.user.room_no || '302'}`
         };
         syncStudentProfileUI();
+        return;
       }
     }
   } catch (e) {}
+
+  // If still unauthenticated, automatically acquire active demo session
+  try {
+    const demoRes = await apiFetch(`${API_BASE}/auth/demo-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'student@sample-college.test' })
+    });
+    if (demoRes.ok) {
+      const data = await demoRes.json();
+      if (data.accessToken) {
+        localStorage.setItem('campuspilot_access_token', data.accessToken);
+      }
+      if (data.csrfToken) {
+        localStorage.setItem('campuspilot_csrf', data.csrfToken);
+      }
+      if (data.user) {
+        currentStudent = {
+          name: data.user.name,
+          email: data.user.email,
+          phone: data.user.phone || '+91 9999999999',
+          roll: data.user.roll_number || 'CS-2026-001',
+          parent_name: data.user.parent_name || 'Jordan Parent',
+          parent_phone: data.user.parent_phone || '+15550100020',
+          dept: data.user.department || 'Computer Science',
+          hostel: `${data.user.hostel_block || 'Residence Hall A'}, Room ${data.user.room_no || '302'}`
+        };
+        syncStudentProfileUI();
+      }
+      // Trigger data fetch now that authenticated
+      fetchRequestsAndPopulateLeftPane();
+      fetchDrawerData();
+    }
+  } catch (err) {
+    console.warn('Auto demo-session init notice:', err);
+  }
 }
 
 // Student Profile State (Default Sample Student)
@@ -107,7 +151,7 @@ let activeTrackedTicket = null;
 function setupTheme() {
   const savedTheme = localStorage.getItem('campuspilot_theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+  const initialTheme = savedTheme || 'dark';
 
   setTheme(initialTheme);
 
@@ -129,7 +173,7 @@ function setTheme(theme) {
   localStorage.setItem('campuspilot_theme', theme);
   const themeIcon = document.getElementById('theme-icon');
   if (themeIcon) {
-    themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    // theme icon handled
   }
   const metaTheme = document.querySelector('meta[name="theme-color"]');
   if (metaTheme) {
@@ -230,10 +274,10 @@ function showToast(message, type = 'info', duration = 3500) {
   toast.setAttribute('role', 'status');
 
   const icons = {
-    success: '✅',
-    warning: '⚠️',
-    danger: '🛑',
-    info: 'ℹ️'
+    success: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+    warning: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+    danger: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+    info: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
   };
 
   toast.innerHTML = `
@@ -267,15 +311,15 @@ function setupCommandPalette() {
   const list = document.getElementById('cmd-results-list');
 
   const commands = [
-    { title: '🎫 Request Outpass', category: 'Action', run: () => { fillChatInput('I need an outpass to go home this weekend'); } },
-    { title: '🚰 Report Hostel Maintenance', category: 'Action', run: () => { fillChatInput('The water tap in hostel 3 is leaking badly'); } },
-    { title: '💡 Propose Campus Suggestion', category: 'Action', run: () => { fillChatInput('I suggest we add more charging sockets in the library'); } },
-    { title: '🚪 Check Curfew & Timings', category: 'Handbook', run: () => { fillChatInput('What are the hostel gate timings and curfew?'); } },
-    { title: '🏛️ Campus Visit Timings', category: 'Handbook', run: () => { fillChatInput('What are the campus visitation hours?'); } },
-    { title: '📊 Passing Marks Criteria', category: 'Academics', run: () => { fillChatInput('What is the passing criteria under academic regulations?'); } },
-    { title: '⚙️ Open Operations Workspace', category: 'Navigation', run: () => { openDrawer(); } },
-    { title: '👤 View Student Account Profile', category: 'Navigation', run: () => { openProfileModal(); } },
-    { title: '🌓 Toggle Light / Dark Theme', category: 'Settings', run: () => {
+    { title: 'Request Outpass', category: 'Action', run: () => { fillChatInput('I need an outpass to go home this weekend'); } },
+    { title: 'Report Hostel Maintenance', category: 'Action', run: () => { fillChatInput('The water tap in hostel 3 is leaking badly'); } },
+    { title: 'Propose Campus Suggestion', category: 'Action', run: () => { fillChatInput('I suggest we add more charging sockets in the library'); } },
+    { title: 'Check Curfew & Timings', category: 'Handbook', run: () => { fillChatInput('What are the hostel gate timings and curfew?'); } },
+    { title: 'Campus Visit Timings', category: 'Handbook', run: () => { fillChatInput('What are the campus visitation hours?'); } },
+    { title: 'Passing Marks Criteria', category: 'Academics', run: () => { fillChatInput('What is the passing criteria under academic regulations?'); } },
+    { title: 'Open Operations Workspace', category: 'Navigation', run: () => { openDrawer(); } },
+    { title: 'View Student Account Profile', category: 'Navigation', run: () => { openProfileModal(); } },
+    { title: 'Toggle Dark / Light Theme', category: 'Settings', run: () => {
       const current = document.documentElement.getAttribute('data-theme') || 'light';
       setTheme(current === 'dark' ? 'light' : 'dark');
       showToast(`Switched to ${current === 'dark' ? 'light' : 'dark'} theme`, 'info', 2000);
@@ -390,8 +434,9 @@ function setupCommandPalette() {
     } else if (e.key === 'Escape') {
       closeCmdPalette();
       closeDrawer();
-      const profModal = document.getElementById('student-profile-modal');
-      if (profModal) profModal.classList.remove('active', 'open');
+      document.querySelectorAll('.cmd-palette-backdrop, .modal-backdrop, .drawer-backdrop').forEach(m => {
+        m.classList.remove('active', 'open');
+      });
     }
   });
 
@@ -406,6 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTheme();
   setupTenantTheme();
   setupCommandPalette();
+  setupVoiceReceptionistStudio();
   setupChatbot();
   setupQuickChips();
   setupDrawer();
@@ -414,11 +460,212 @@ document.addEventListener('DOMContentLoaded', () => {
   setupBacklogControls();
   setupArchitectureModal();
   setupVoiceSimulator();
+  setupDashboardNavigation();
   ensureAuthenticated();
   syncStudentProfileUI();
   checkSystemStatus();
   fetchInitialData();
 });
+
+// ---------------------------------------------------------------------------
+// 0. Voice AI Receptionist Studio & 3D Avatar Controller
+// ---------------------------------------------------------------------------
+function setupVoiceReceptionistStudio() {
+  const mount = document.getElementById('three-avatar-mount');
+  const statusPill = document.getElementById('receptionist-status-pill');
+  const statusText = document.getElementById('receptionist-status-text');
+  const micBtn = document.getElementById('btn-voice-mic-hero');
+  const micLabel = document.getElementById('mic-btn-label');
+  const muteBtn = document.getElementById('btn-voice-mute-toggle');
+  const muteText = document.getElementById('mute-text');
+  const muteIcon = document.getElementById('mute-icon');
+  const transcriptCard = document.getElementById('live-transcription-card');
+  const transcriptText = document.getElementById('live-transcription-text');
+  const spectrumBars = document.querySelectorAll('.frequency-bar');
+  const pipelineToggleBtn = document.getElementById('toggle-pipeline-accordion-btn');
+  const processLeftPane = document.getElementById('process-left-pane');
+  const toolsDropdownBtn = document.getElementById('tools-dropdown-btn');
+  const toolsDropdownWrapper = document.querySelector('.tools-dropdown-wrapper');
+
+  // 1. Initialize Three.js 3D Speaking Hologram Avatar
+  if (mount) {
+    try {
+      threeAvatarInstance = new ThreeAvatar(mount);
+      window.threeAvatar = threeAvatarInstance;
+    } catch (e) {
+      console.warn('Could not initialize ThreeAvatar:', e);
+    }
+  }
+
+  // 2. Initialize Voice Engine (STT + TTS + Mic Analyser)
+  try {
+    voiceEngineInstance = new VoiceEngine({
+      lang: 'en-US',
+      onStateChange: (state) => {
+        if (threeAvatarInstance) threeAvatarInstance.setState(state);
+
+        if (statusPill) {
+          statusPill.className = `voice-status-pill ${state}`;
+        }
+
+        if (statusText) {
+          switch (state) {
+            case 'listening':
+              statusText.textContent = 'Listening to voice...';
+              break;
+            case 'thinking':
+              statusText.textContent = 'Processing query...';
+              break;
+            case 'speaking':
+              statusText.textContent = 'Speaking response...';
+              break;
+            case 'idle':
+            default:
+              statusText.textContent = 'Standby • Ready';
+              break;
+          }
+        }
+
+        if (micBtn) {
+          if (state === 'listening') {
+            micBtn.classList.add('is-listening');
+            if (micLabel) micLabel.textContent = 'Listening... (Tap to Send)';
+          } else {
+            micBtn.classList.remove('is-listening');
+            if (micLabel) micLabel.textContent = 'Tap to Speak';
+          }
+        }
+
+        if (transcriptCard) {
+          if (state === 'listening') {
+            transcriptCard.classList.add('active');
+          } else {
+            transcriptCard.classList.remove('active');
+          }
+        }
+      },
+      onTranscript: (text, isFinal) => {
+        if (transcriptText) {
+          transcriptText.textContent = `"${text}"`;
+          transcriptText.classList.remove('placeholder');
+        }
+      },
+      onFinalTranscript: (finalText) => {
+        if (transcriptText) {
+          transcriptText.textContent = `"${finalText}"`;
+          transcriptText.classList.remove('placeholder');
+        }
+        const chatInput = document.getElementById('user-chat-input');
+        const chatForm = document.getElementById('chat-submit-form');
+        if (chatInput && chatForm && finalText.trim()) {
+          chatInput.value = finalText.trim();
+          chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      },
+      onAudioLevel: (level) => {
+        if (threeAvatarInstance) {
+          threeAvatarInstance.setAudioLevel(level);
+        }
+        // Modulate spectrum bars dynamically
+        if (spectrumBars && spectrumBars.length > 0) {
+          spectrumBars.forEach((bar, idx) => {
+            const factor = Math.sin((idx / spectrumBars.length) * Math.PI) * 0.8 + 0.2;
+            const barHeight = Math.max(4, Math.min(26, level * 26 * factor + Math.random() * 4));
+            bar.style.height = `${barHeight}px`;
+          });
+        }
+      },
+      onError: (err) => {
+        console.warn('Voice Engine Error:', err);
+        if (statusText) statusText.textContent = 'Voice: ' + err;
+      }
+    });
+    window.voiceEngine = voiceEngineInstance;
+  } catch (err) {
+    console.warn('Could not initialize VoiceEngine:', err);
+  }
+
+  // 3. Main Mic Hero Button Toggle
+  if (micBtn) {
+    micBtn.addEventListener('click', () => {
+      if (!voiceEngineInstance) return;
+      if (voiceEngineInstance.isListening) {
+        voiceEngineInstance.stopListening();
+      } else {
+        voiceEngineInstance.startListening();
+      }
+    });
+  }
+
+  // 4. Mute Button Toggle
+  if (muteBtn) {
+    muteBtn.addEventListener('click', () => {
+      if (!voiceEngineInstance) return;
+      const isMuted = voiceEngineInstance.toggleMute();
+      if (muteText) muteText.textContent = isMuted ? 'AI Voice: OFF' : 'AI Voice: ON';
+      // mute state handled via svg
+    });
+  }
+
+  // 5. Quick Voice Prompt Chips
+  document.querySelectorAll('.voice-prompt-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const promptText = chip.getAttribute('data-speak');
+      const chatInput = document.getElementById('user-chat-input');
+      const chatForm = document.getElementById('chat-submit-form');
+      if (chatInput && chatForm && promptText) {
+        chatInput.value = promptText;
+        chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    });
+  });
+
+  // 6. View Mode Switcher (50/50 Dual Studio vs Studio Only vs Chat Focus)
+  const splitLayout = document.getElementById('app-split-layout');
+  document.querySelectorAll('.btn-view-mode').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-view-mode').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const mode = btn.getAttribute('data-mode');
+      if (!splitLayout) return;
+
+      splitLayout.classList.remove('dual-mode', 'studio-only', 'chat-only');
+      if (mode === 'dual') {
+        splitLayout.classList.add('dual-mode');
+      } else if (mode === 'studio') {
+        splitLayout.classList.add('studio-only');
+      } else if (mode === 'chat') {
+        splitLayout.classList.add('chat-only');
+      }
+
+      if (threeAvatarInstance) {
+        setTimeout(() => threeAvatarInstance.onResize(), 150);
+      }
+    });
+  });
+
+  // 7. Pipeline Accordion Toggle
+  if (pipelineToggleBtn && processLeftPane) {
+    pipelineToggleBtn.addEventListener('click', () => {
+      processLeftPane.classList.toggle('collapsed');
+      const isCollapsed = processLeftPane.classList.contains('collapsed');
+      const label = pipelineToggleBtn.querySelector('span');
+      if (label) label.textContent = isCollapsed ? 'Telemetry Pipeline ▾' : 'Hide Pipeline ▴';
+    });
+  }
+
+  // 8. Tools Dropdown Toggle
+  if (toolsDropdownBtn && toolsDropdownWrapper) {
+    toolsDropdownBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toolsDropdownWrapper.classList.toggle('open');
+    });
+    document.addEventListener('click', () => {
+      toolsDropdownWrapper.classList.remove('open');
+    });
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 1. Health & Initial Data
@@ -488,6 +735,11 @@ function setupChatbot() {
     renderUserMessage(message);
     input.value = '';
 
+    // Set 3D Avatar state to thinking
+    if (window.threeAvatar) window.threeAvatar.setState('thinking');
+    const statusTextEl = document.getElementById('receptionist-status-text');
+    if (statusTextEl) statusTextEl.textContent = 'Processing query...';
+
     // 2. Show Typing Indicator
     const typingId = renderTypingIndicator();
 
@@ -511,7 +763,7 @@ function setupChatbot() {
       const data = await res.json();
       removeTypingIndicator(typingId);
 
-      // 3. Render Assistant Response
+      // 3. Render Assistant Response & Speak Aloud
       renderBotResponse(data);
 
       // 4. If request/ticket action (complaint, suggestion, proposal, or track), slide in left pane & compress chatbot
@@ -523,17 +775,20 @@ function setupChatbot() {
       }
     } catch (err) {
       removeTypingIndicator(typingId);
+      if (window.threeAvatar) window.threeAvatar.setState('idle');
       renderBotMessage('Unable to reach server. Please ensure the backend is running at http://localhost:5000.');
     }
   });
 }
 
 function renderUserMessage(text) {
+  const tray = document.getElementById('chat-thread-tray');
+  if (tray) tray.classList.add('active');
   const thread = document.getElementById('chat-thread');
   const row = document.createElement('div');
   row.className = 'chat-message-row user';
   row.innerHTML = `
-    <div class="chat-avatar user">👤</div>
+    <div class="chat-avatar user"><span class="avatar-initials">SA</span></div>
     <div class="chat-bubble-payload">
       <div class="chat-text-card">${escapeHtml(text)}</div>
     </div>
@@ -543,17 +798,23 @@ function renderUserMessage(text) {
 }
 
 function renderBotMessage(text, source = null) {
+  const tray = document.getElementById('chat-thread-tray');
+  if (tray) tray.classList.add('active');
   const thread = document.getElementById('chat-thread');
   const row = document.createElement('div');
   row.className = 'chat-message-row bot';
 
   let sourceHtml = '';
   if (source) {
-    sourceHtml = `<div class="chat-source-tag"><span>📖</span> ${source}</div>`;
+    sourceHtml = `
+      <div class="chat-source-tag">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        <span>${escapeHtml(source)}</span>
+      </div>`;
   }
 
   row.innerHTML = `
-    <div class="chat-avatar bot">🤖</div>
+    <div class="chat-avatar bot"><span class="bot-badge-monogram">CP</span></div>
     <div class="chat-bubble-payload">
       <div class="chat-text-card">${formatMarkdown(text)}</div>
       ${sourceHtml}
@@ -570,7 +831,7 @@ function renderTypingIndicator() {
   row.id = id;
   row.className = 'chat-message-row bot';
   row.innerHTML = `
-    <div class="chat-avatar bot" aria-hidden="true">🤖</div>
+    <div class="chat-avatar bot" aria-hidden="true"><span class="bot-badge-monogram">CP</span></div>
     <div class="chat-bubble-payload">
       <div class="chat-typing-bubble" aria-label="Assistant is thinking">
         <span class="typing-dot"></span>
@@ -595,7 +856,8 @@ function renderSourceAccordion(source, excerpt = null) {
   return `
     <div class="chat-source-accordion">
       <button type="button" class="source-header-btn" aria-expanded="false">
-        <span>📖 Source: <strong>${escapeHtml(source)}</strong></span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        <span>Source: <strong>${escapeHtml(source)}</strong></span>
         <span class="source-chevron">▶</span>
       </button>
       <div class="source-drawer-body">
@@ -613,7 +875,7 @@ function renderBotResponse(data) {
 
   const avatar = document.createElement('div');
   avatar.className = 'chat-avatar bot';
-  avatar.textContent = '🤖';
+  avatar.innerHTML = '<span class="bot-badge-monogram">CP</span>';
   avatar.setAttribute('aria-hidden', 'true');
 
   const payload = document.createElement('div');
@@ -629,6 +891,11 @@ function renderBotResponse(data) {
 
   const fullReply = data.reply || '';
   const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Speak aloud via AI receptionist voice engine if enabled
+  if (window.voiceEngine && !window.voiceEngine.isMuted && fullReply) {
+    window.voiceEngine.speak(fullReply);
+  }
 
   function appendAddons() {
     // Interactive Ticket Card
@@ -687,7 +954,7 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
                 <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary); margin: 0.15rem 0;">Campus Digital Hostel Outpass</h3>
                 <span class="quick-ref" style="font-size: 0.85rem; color: var(--purple-main);">${escapeHtml(t.tracking_id)}</span>
               </div>
-              <div class="outpass-qr-sim" title="Scan at Security Gate 1">📱</div>
+              <div class="outpass-qr-sim" title="Official Security Gate Pass"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><rect x="7" y="7" width="3" height="3"></rect><rect x="14" y="7" width="3" height="3"></rect><rect x="7" y="14" width="3" height="3"></rect></svg></div>
             </div>
 
             <div class="outpass-detail-grid">
@@ -723,9 +990,9 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
             </div>
 
             <div style="margin-top: 0.65rem; padding-top: 0.65rem; border-top: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem;">
-              <span style="color: #64748b;">📧 Outpass copy generated for <strong>${escapeHtml(t.student_email || currentStudent.email || '')}</strong></span>
+              <span style="color: #64748b;">Outpass copy generated for <strong>${escapeHtml(t.student_email || currentStudent.email || '')}</strong></span>
               <button class="btn-cancel" style="padding: 0.25rem 0.65rem; font-size: 0.72rem; border-color: var(--purple-main); color: var(--purple-main); font-weight: 600;" data-action="open-email-preview" data-tracking-id="${escapeHtml(t.tracking_id)}">
-                🔍 View Email Copy
+                View Clearance Email
               </button>
             </div>
           </div>
@@ -745,7 +1012,7 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
             <span class="pill-badge pill-rejected">OUTPASS DENIED</span>
           </div>
           <div style="padding: 0.75rem; background: var(--color-danger-subtle); border-radius: 6px; font-size: 0.82rem; color: var(--color-danger);">
-            ❌ Parent denied permission for this leave request during the automated verification call. Outpass cannot be issued.
+            Parent authorization was denied during automated verification. Outpass cannot be issued.
           </div>
         </div>
       `;
@@ -765,7 +1032,7 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
         <div style="font-size: 0.88rem; font-weight: 600; margin-bottom: 0.5rem;">${escapeHtml(t.title || '')}</div>
 
         <div class="callout-box callout-voice" style="border-color: rgba(245, 158, 11, 0.3); background: var(--color-warning-subtle);">
-          <span>📞</span>
+          <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span>
           <div>
             <strong style="color: var(--color-warning);">Parent Outbound Verification Call Dispatched:</strong>
             <span>Automated call in progress to parent <strong>${escapeHtml(t.parent_name || currentStudent.parent_name || '')}</strong> at <strong style="color: var(--color-primary);">${escapeHtml(t.parent_phone || currentStudent.parent_phone || '')}</strong> to confirm leave permission.</span>
@@ -775,14 +1042,14 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
         <!-- Live Demonstration Simulation Controls -->
         <div style="border-top: 1px solid var(--border-light); padding-top: 0.75rem; margin-top: 0.5rem;">
           <span style="font-size: 0.76rem; color: var(--text-secondary); display: block; margin-bottom: 0.45rem;">
-            ⚡ <strong>Test Voice Webhook:</strong> Simulate parent answering call:
+            <strong>Voice Webhook Dispatch:</strong> Simulate parent voice response:
           </span>
           <div style="display: flex; gap: 0.5rem;">
             <button class="btn-send-message" style="background: var(--green-light); padding: 0.35rem 0.85rem; font-size: 0.76rem; flex: 1; justify-content: center;" data-action="simulate-parent" data-tracking-id="${escapeHtml(t.tracking_id)}" data-decision="approved">
-              ✓ Simulate Parent Saying: "YES / OK" (Approve)
+              Simulate Parent Saying: "YES, APPROVED"
             </button>
             <button class="btn-cancel" style="padding: 0.35rem 0.75rem; font-size: 0.76rem; border-color: var(--red-border); color: var(--red-main);" data-action="simulate-parent" data-tracking-id="${escapeHtml(t.tracking_id)}" data-decision="rejected">
-              ✗ Simulate Parent Denying
+              Simulate Parent Denying
             </button>
           </div>
         </div>
@@ -806,7 +1073,7 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
   if (t.voice_call_status === 'pending' || needsVoice) {
     voiceBox = `
       <div class="callout-box callout-voice">
-        <span>📞</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span>
         <div>
           <strong>Adaptive Voice Clarification Scheduled:</strong>
           <span>Missing room/wing specifics. Outbound call scheduled to ${escapeHtml(t.student_phone || 'student phone')} to clarify before crew dispatch.</span>
@@ -816,7 +1083,7 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
   } else if (t.voice_call_status === 'completed' && t.voice_transcript) {
     voiceBox = `
       <div class="callout-box callout-voice">
-        <span>📞</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span>
         <div>
           <strong>Voice Clarification Captured:</strong>
           <span style="font-style: italic;">"${escapeHtml(t.voice_transcript)}"</span>
@@ -830,7 +1097,7 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
   if (t.incident_code || incidentLinked) {
     incidentBox = `
       <div class="callout-box callout-incident">
-        <span>🧠</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg></span>
         <div>
           <strong>Campus Incident Cluster Detected:</strong>
           <span>Multiple complaints grouped into shared incident <strong>${escapeHtml(t.incident_code || 'INC-2026-001')}</strong>. Maintenance has unified status broadcast.</span>
@@ -855,10 +1122,10 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
         </div>
         <div class="feedback-actions-row">
           <button type="button" class="btn-confirm-fixed" data-action="ticket-closure" data-tracking-id="${escapeHtml(t.tracking_id)}" data-closure-type="confirm_resolution">
-            <span>✓ Confirm Fixed</span>
+            <span>Confirm Fixed</span>
           </button>
           <button type="button" class="btn-reopen-ticket" data-action="ticket-closure" data-tracking-id="${escapeHtml(t.tracking_id)}" data-closure-type="reopen">
-            <span>⚠️ Still Broken (Reopen)</span>
+            <span>Reopen Ticket</span>
           </button>
         </div>
       </div>
@@ -891,23 +1158,23 @@ function renderInteractiveTicketCard(t, needsVoice = false, incidentLinked = fal
         <div class="stepper-track-bg"></div>
         <div class="stepper-track-fill" style="width: ${Math.min(100, Math.max(0, (step - 1) * 25))}%;"></div>
         <div class="stepper-step ${step > 1 ? 'completed' : (step === 1 ? 'active' : '')}">
-          <div class="step-node">${step > 1 ? '✓' : '1'}</div>
+          <div class="step-node"><span class="node-indicator"></span></div>
           <span class="step-label">Submitted</span>
         </div>
         <div class="stepper-step ${step > 2 ? 'completed' : (step === 2 ? 'active' : '')}">
-          <div class="step-node">${step > 2 ? '✓' : '2'}</div>
+          <div class="step-node"><span class="node-indicator"></span></div>
           <span class="step-label">Assigned</span>
         </div>
         <div class="stepper-step ${step > 3 ? 'completed' : (step === 3 ? 'active' : '')}">
-          <div class="step-node">${step > 3 ? '✓' : '3'}</div>
+          <div class="step-node"><span class="node-indicator"></span></div>
           <span class="step-label">In Progress</span>
         </div>
         <div class="stepper-step ${step > 4 ? 'completed' : (step === 4 ? 'active' : '')}">
-          <div class="step-node">${step > 4 ? '✓' : '4'}</div>
+          <div class="step-node"><span class="node-indicator"></span></div>
           <span class="step-label">Resolved</span>
         </div>
         <div class="stepper-step ${step >= 5 ? 'completed' : ''}">
-          <div class="step-node">${step >= 5 ? '✓' : '5'}</div>
+          <div class="step-node"><span class="node-indicator"></span></div>
           <span class="step-label">Confirmed</span>
         </div>
       </div>
@@ -1130,9 +1397,87 @@ async function fetchRequestsAndPopulateLeftPane(selectedId = null) {
 
     // Populate drawer backlog as well
     populateDrawerBacklog(allRequestsList);
+
+    // Dynamically update Quick Overview stats & Recent Activity timeline on Home Dashboard
+    updateHomeOverviewAndActivity(allRequestsList);
+    // Dynamically update Admin KPI Metrics
+    updateAdminKpis(allRequestsList);
   } catch (err) {
     console.error('Failed to fetch requests list:', err);
   }
+}
+
+function updateHomeOverviewAndActivity(requests) {
+  // 1. Update Quick Overview numbers
+  const outpasses = requests.filter(r => r.type === 'outpass');
+  const complaints = requests.filter(r => r.type !== 'outpass');
+
+  const statOutpass = document.getElementById('quick-stat-outpasses');
+  const statMaint = document.getElementById('quick-stat-maintenance');
+  if (statOutpass) statOutpass.textContent = outpasses.length;
+  if (statMaint) statMaint.textContent = complaints.length;
+
+  // 2. Update Recent Activity timeline dynamically
+  const container = document.getElementById('activity-timeline-container');
+  if (!container) return;
+
+  if (requests.length === 0) {
+    container.innerHTML = `
+      <div style="padding: 1.5rem 0.5rem; text-align: center; color: var(--text-muted); font-size: 0.82rem;">
+        No requests created yet. Submit an outpass or report to track live activity.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = '';
+  // Show the latest 4 requests
+  const recent = requests.slice(0, 4);
+  recent.forEach(r => {
+    const isOutpass = r.type === 'outpass';
+    const isApproved = r.status === 'resolved' || r.status === 'completed';
+    const isInProgress = r.status === 'in_progress';
+    const nodeColor = isOutpass ? 'green' : (isInProgress ? 'purple' : 'blue');
+    const badgeClass = isApproved ? 'approved' : (isInProgress ? 'in-progress' : 'assigned');
+    const badgeLabel = (r.status || 'assigned').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+    const entry = document.createElement('div');
+    entry.className = 'timeline-entry';
+    entry.style.cursor = 'pointer';
+    entry.onclick = () => selectTicketForInspection(r.tracking_id);
+    entry.innerHTML = `
+      <div class="timeline-node ${nodeColor}">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+      </div>
+      <div class="timeline-body">
+        <div class="timeline-headline">${escapeHtml(r.title || (isOutpass ? `Outpass to ${r.destination}` : 'Maintenance defect'))}</div>
+        <div class="timeline-subtext">${escapeHtml(r.tracking_id)} &bull; ${formatRelativeTime(r.created_at)}</div>
+      </div>
+      <span class="status-pill-chip ${badgeClass}">${escapeHtml(badgeLabel)}</span>
+    `;
+    container.appendChild(entry);
+  });
+}
+
+function updateAdminKpis(requests) {
+  const reportsCount = requests.filter(r => r.type !== 'outpass').length;
+  const outpassesCount = requests.filter(r => r.type === 'outpass').length;
+  const kpiReports = document.getElementById('kpi-total-reports');
+  const kpiOutpasses = document.getElementById('kpi-total-outpasses');
+  if (kpiReports) kpiReports.textContent = reportsCount;
+  if (kpiOutpasses) kpiOutpasses.textContent = outpassesCount;
+}
+
+function formatRelativeTime(dateStr) {
+  if (!dateStr) return 'Just now';
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
 }
 
 function selectTicketForInspection(trackingId) {
@@ -1186,22 +1531,29 @@ function setupDrawer() {
   const closeBtn = document.getElementById('close-drawer-btn');
   const tabBtns = document.querySelectorAll('.drawer-tab-btn');
   const sections = document.querySelectorAll('.drawer-section');
-  const simForm = document.getElementById('drawer-voice-sim-form');
+  const simForm = document.getElementById('drawer-sim-form') || document.getElementById('drawer-voice-sim-form');
 
-  openBtn.addEventListener('click', () => {
-    drawer.classList.add('open');
-    fetchDrawerData();
-  });
+  if (openBtn && drawer) {
+    openBtn.addEventListener('click', () => {
+      drawer.classList.add('open');
+      fetchDrawerData();
+    });
+  }
 
-  closeBtn.addEventListener('click', () => drawer.classList.remove('open'));
-  drawer.addEventListener('click', (e) => {
-    if (e.target === drawer) drawer.classList.remove('open');
-  });
+  if (closeBtn && drawer) {
+    closeBtn.addEventListener('click', () => drawer.classList.remove('open'));
+  }
+  if (drawer) {
+    drawer.addEventListener('click', (e) => {
+      if (e.target === drawer) drawer.classList.remove('open');
+    });
+  }
 
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.remove('active'));
-      sections.forEach(s => s.classList.remove('active'));
+      const panes = document.querySelectorAll('.drawer-tab-pane');
+      panes.forEach(p => p.classList.remove('active'));
 
       btn.classList.add('active');
       const target = document.getElementById(btn.getAttribute('data-tab'));
@@ -1209,17 +1561,17 @@ function setupDrawer() {
     });
   });
 
-  document.getElementById('refresh-backlog-btn').addEventListener('click', fetchDrawerData);
+  const refBtn = document.getElementById('refresh-backlog-btn'); if (refBtn) refBtn.addEventListener('click', fetchDrawerData);
 
   // Voice Simulator Form
-  simForm.addEventListener('submit', async (e) => {
+  if (simForm) simForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const trackingId = document.getElementById('drawer-sim-ticket').value;
     const wing = document.getElementById('drawer-sim-wing').value;
     const room = document.getElementById('drawer-sim-room').value;
     const out = document.getElementById('drawer-sim-output');
 
-    out.textContent = '📞 Placing simulated phone call to student...\nWaiting for voice transcript callback...';
+    out.textContent = '[DISPATCH] Initiating automated voice call to student...\nAwaiting verification transcript...';
 
     try {
       const res = await apiFetch(`${API_BASE}/voice/trigger-simulated`, {
@@ -1257,9 +1609,9 @@ function setupDrawer() {
     btnApprove.addEventListener('click', async () => {
       const trackingId = outpassSelect.value;
       if (!trackingId) return alert('No outpass ticket selected.');
-      outpassOut.textContent = `📞 Calling Parent Phone...\nParent: "Yes, OK, I approve."\nGenerating Digital Pass...`;
+      outpassOut.textContent = `[CALLING] Dispatching to Parent Phone...\nParent: "Yes, verified and approved."\nGenerating Security Clearance...`;
       await window.simulateParentOutpassDecision(trackingId, 'approved');
-      outpassOut.textContent = `✅ Outpass ${trackingId} APPROVED! Official Digital Gate Pass Issued.`;
+      outpassOut.textContent = `[APPROVED] Outpass ${trackingId} APPROVED. Official Digital Gate Pass Issued.`;
     });
   }
 
@@ -1267,9 +1619,9 @@ function setupDrawer() {
     btnDeny.addEventListener('click', async () => {
       const trackingId = outpassSelect.value;
       if (!trackingId) return alert('No outpass ticket selected.');
-      outpassOut.textContent = `📞 Calling Parent Phone...\nParent: "No, I do not approve."\nRecording rejection...`;
+      outpassOut.textContent = `[CALLING] Dispatching to Parent Phone...\nParent: "No, leave permission denied."\nRecording audit trail...`;
       await window.simulateParentOutpassDecision(trackingId, 'rejected');
-      outpassOut.textContent = `❌ Outpass ${trackingId} REJECTED by parent.`;
+      outpassOut.textContent = `[REJECTED] Outpass ${trackingId} REJECTED by guardian.`;
     });
   }
 }
@@ -1342,7 +1694,7 @@ window.openEmailPreviewModal = async (trackingId) => {
         <div class="modal-card" style="max-width: 680px; max-height: 85vh; display: flex; flex-direction: column;">
           <div class="modal-header">
             <h3 style="font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem;">
-              <span>📧</span> Student Outpass Email Preview
+              Student Outpass Email Notification
             </h3>
             <button class="pane-close-btn" data-action="close-email-modal">&times;</button>
           </div>
@@ -1392,40 +1744,52 @@ function syncStudentProfileUI() {
   }
 
   // Populate modal form inputs
-  const pName = document.getElementById('prof-name');
-  const pRoll = document.getElementById('prof-roll');
-  const pEmail = document.getElementById('prof-email');
+  const pName = document.getElementById('prof-name') || document.getElementById('prof-student-name');
+  const pRoll = document.getElementById('prof-roll') || document.getElementById('prof-student-roll');
+  const pEmail = document.getElementById('prof-email') || document.getElementById('prof-student-email');
   const pPhone = document.getElementById('prof-phone');
   const pDept = document.getElementById('prof-dept');
   const pHostel = document.getElementById('prof-hostel');
   const pParentName = document.getElementById('prof-parent-name');
   const pParentPhone = document.getElementById('prof-parent-phone');
 
-  if (pName) pName.value = currentStudent.name || 'Alex Student';
-  if (pRoll) pRoll.value = currentStudent.roll || 'CS-2026-042';
-  if (pEmail) pEmail.value = currentStudent.email || 'student@sample-college.test';
-  if (pPhone) pPhone.value = currentStudent.phone || '+15550100010';
-  if (pDept) pDept.value = currentStudent.dept || 'Computer Science & Engineering';
-  if (pHostel) pHostel.value = currentStudent.hostel || 'Hostel Block A, Room 302';
-  if (pParentName) pParentName.value = currentStudent.parent_name || 'Jordan Parent';
-  if (pParentPhone) pParentPhone.value = currentStudent.parent_phone || '+15550100020';
+  if (pName) pName.value = currentStudent.name || '';
+  if (pRoll) pRoll.value = currentStudent.roll || '';
+  if (pEmail) pEmail.value = currentStudent.email || '';
+  if (pPhone) pPhone.value = currentStudent.phone || '';
+  if (pDept) pDept.value = currentStudent.dept || '';
+  if (pHostel) pHostel.value = currentStudent.hostel || '';
+  if (pParentName) pParentName.value = currentStudent.parent_name || '';
+  if (pParentPhone) pParentPhone.value = currentStudent.parent_phone || '';
+
+  // Auto-populate outpass modal parent phone if student has one registered
+  const outpassParent = document.getElementById('outpass-parent-phone');
+  if (outpassParent && currentStudent.parent_phone && !outpassParent.value) {
+    outpassParent.value = currentStudent.parent_phone;
+  }
 }
 
 function setupProfileModal() {
   const modal = document.getElementById('student-profile-modal');
   const openBtn = document.getElementById('open-profile-btn');
   const dockLink = document.getElementById('dock-edit-profile-btn');
-  const closeBtn = document.getElementById('close-profile-modal-btn');
+  const closeBtn = document.getElementById('close-profile-modal-btn') || document.getElementById('close-profile-btn');
   const cancelBtn = document.getElementById('cancel-profile-btn');
-  const form = document.getElementById('student-profile-form');
+  const form = document.getElementById('student-profile-form') || document.getElementById('profile-edit-form');
 
   const openModal = () => {
     syncStudentProfileUI();
-    if (modal) modal.classList.add('open');
+    if (modal) {
+      modal.classList.add('open');
+      modal.classList.add('active');
+    }
   };
 
   const closeModal = () => {
-    if (modal) modal.classList.remove('open');
+    if (modal) {
+      modal.classList.remove('open');
+      modal.classList.remove('active');
+    }
   };
 
   if (openBtn) openBtn.addEventListener('click', openModal);
@@ -1463,7 +1827,7 @@ function setupProfileModal() {
 
       syncStudentProfileUI();
       closeModal();
-      renderBotMessage(`✅ Student Profile updated! When requesting an Outpass, our AI voice agent will call parent at **${currentStudent.parent_phone}**.`);
+      renderBotMessage(`Student Profile updated. Outpass voice authorizations will dispatch to parent at **${currentStudent.parent_phone}**.`);
     });
   }
 }
@@ -1613,7 +1977,7 @@ function populateDrawerBacklog(tickets) {
     kanbanBoard.innerHTML = `
       <div class="kanban-col" data-col="backlog">
         <div class="kanban-col-header">
-          <div class="kanban-col-title">📥 Backlog</div>
+          <div class="kanban-col-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg> <span>Backlog</span></div>
           <span class="kanban-count-badge">${backlogTickets.length}</span>
         </div>
         <div class="kanban-cards-area">
@@ -1623,7 +1987,7 @@ function populateDrawerBacklog(tickets) {
 
       <div class="kanban-col" data-col="in_progress">
         <div class="kanban-col-header">
-          <div class="kanban-col-title">⚡ In Progress</div>
+          <div class="kanban-col-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> <span>In Progress</span></div>
           <span class="kanban-count-badge">${inProgressTickets.length}</span>
         </div>
         <div class="kanban-cards-area">
@@ -1633,7 +1997,7 @@ function populateDrawerBacklog(tickets) {
 
       <div class="kanban-col" data-col="resolved">
         <div class="kanban-col-header">
-          <div class="kanban-col-title">✓ Resolved</div>
+          <div class="kanban-col-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>Resolved</span></div>
           <span class="kanban-count-badge">${resolvedTickets.length}</span>
         </div>
         <div class="kanban-cards-area">
@@ -1734,7 +2098,7 @@ function setupVoiceSimulator() {
 
     output.innerHTML = `
       <div class="voice-call-status-badge connecting">
-        <span>🔄 Initializing Voice Call Dispatch...</span>
+        <span>Initializing Voice Dispatch Session...</span>
       </div>
       <div class="waveform-visualizer">
         <div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div>
@@ -1747,7 +2111,7 @@ function setupVoiceSimulator() {
 
     output.innerHTML = `
       <div class="voice-call-status-badge active-call">
-        <span>⚡ In Call: Connected</span>
+        <span>Active Session: Connected</span>
       </div>
       <div class="waveform-visualizer active">
         <div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div><div class="waveform-bar"></div>
@@ -1774,7 +2138,7 @@ function setupVoiceSimulator() {
 
       output.innerHTML = `
         <div class="voice-call-status-badge completed">
-          <span>✓ Call Completed — Clarification Logged</span>
+          <span>Call Completed &bull; Clarification Logged</span>
         </div>
         <div style="font-family: var(--font-mono); font-size: 0.74rem; color: var(--color-success-text); margin-top: 0.35rem;">
           Details successfully parsed and injected into ticket record.<br>
@@ -1809,7 +2173,7 @@ async function fetchDrawerData() {
       item.style.borderColor = 'var(--amber-border)';
       item.innerHTML = `
         <div style="display: flex; justify-content: space-between;">
-          <strong style="color: var(--amber-main); font-size: 0.85rem;">🧠 ${escapeHtml(inc.incident_code)}</strong>
+          <strong style="color: var(--amber-main); font-size: 0.85rem;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg> ${escapeHtml(inc.incident_code)}</strong>
           <span class="pill-badge pill-awaiting_details">${escapeHtml(String(inc.ticket_count))} Reports Linked</span>
         </div>
         <div style="font-size: 0.88rem; font-weight: 600;">${escapeHtml(inc.title)}</div>
@@ -1883,7 +2247,7 @@ async function fetchDrawerData() {
               card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <strong style="color: #b91c1c; font-family: monospace;">${escapeHtml(t.tracking_id)}</strong>
-                  <span class="pill-badge" style="background: #fee2e2; color: #b91c1c; font-weight: 700;">⚠️ DISPATCH FAILED</span>
+                  <span class="pill-badge" style="background: #fee2e2; color: #b91c1c; font-weight: 700;">DISPATCH FAILED</span>
                 </div>
                 <div style="font-size: 0.88rem; font-weight: 600; margin-top: 0.25rem;">${escapeHtml(t.title)}</div>
                 <div style="font-size: 0.78rem; color: #4b5563; margin-top: 0.15rem;">
@@ -2057,11 +2421,15 @@ function setupModalToggle(triggerId, modalId, closeId) {
   if (closeBtn && modal) {
     closeBtn.addEventListener('click', () => {
       modal.classList.remove('active');
+      modal.classList.remove('open');
     });
   }
   if (modal) {
     modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.remove('active');
+      if (e.target === modal) {
+        modal.classList.remove('active');
+        modal.classList.remove('open');
+      }
     });
   }
 }
@@ -2151,11 +2519,11 @@ if (btnRunGateScan) {
         gateResultCard.style.display = 'block';
         if (res.ok && data.valid) {
           gateResultCard.className = 'scan-result-card status-granted';
-          if (gateStatusBadge) gateStatusBadge.innerHTML = '🟢 PASS VALID: CLEARANCE GRANTED';
+          if (gateStatusBadge) gateStatusBadge.innerHTML = 'PASS VALID: CLEARANCE GRANTED';
           if (gateMessage) gateMessage.innerHTML = `<strong>${escapeHtml(data.student?.name || currentStudent.name)}</strong> permitted to <strong>${direction.toUpperCase()}</strong>.<br><small style="color: var(--text-muted);">Verified at Gate 1 &bull; Audit logged</small>`;
         } else {
           gateResultCard.className = 'scan-result-card status-denied';
-          if (gateStatusBadge) gateStatusBadge.innerHTML = '🔴 GATE CLEARANCE DENIED';
+          if (gateStatusBadge) gateStatusBadge.innerHTML = 'GATE CLEARANCE DENIED';
           if (gateMessage) gateMessage.textContent = data.message || 'Pass verification failed or expired.';
         }
       }
@@ -2163,7 +2531,7 @@ if (btnRunGateScan) {
       if (gateResultCard) {
         gateResultCard.style.display = 'block';
         gateResultCard.className = 'scan-result-card status-denied';
-        if (gateStatusBadge) gateStatusBadge.innerHTML = '🔴 SCAN ERROR';
+        if (gateStatusBadge) gateStatusBadge.innerHTML = 'SCAN ERROR';
         if (gateMessage) gateMessage.textContent = 'Unable to reach gate verification service: ' + err.message;
       }
     }
@@ -2241,4 +2609,671 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// 10. Multi-Role Portal Switcher & Interactive Suites (Student vs Admin)
+// ---------------------------------------------------------------------------
 
+function setupDashboardNavigation() {
+  const chatInput = document.getElementById('user-chat-input');
+  const chatForm = document.getElementById('chat-submit-form');
+  const chatTray = document.getElementById('chat-thread-tray');
+
+  // 1. Role Switcher: Student Portal vs Admin Console (Passcode Protected: "PSPK")
+  const ADMIN_PASSCODE = 'PSPK';
+  let isAdminAuthenticated = (sessionStorage.getItem('campus_pilot_admin_authenticated') === 'true');
+
+  const btnRoleStudent = document.getElementById('btn-role-student');
+  const btnRoleAdmin = document.getElementById('btn-role-admin');
+  const studentDashboardGrid = document.querySelector('.dashboard-content-grid');
+  const adminConsoleView = document.getElementById('admin-command-center-view');
+
+  const adminAuthModal = document.getElementById('modal-admin-auth');
+  const adminAuthInput = document.getElementById('admin-auth-passcode');
+  const adminAuthError = document.getElementById('admin-auth-error-msg');
+  const adminAuthForm = document.getElementById('admin-auth-form');
+  const btnCloseAdminAuth = document.getElementById('close-admin-auth-btn');
+  const btnCancelAdminAuth = document.getElementById('btn-cancel-admin-auth');
+  const btnSubmitAdminAuth = document.getElementById('btn-submit-admin-auth');
+  const btnLockAdminConsole = document.getElementById('btn-lock-admin-console');
+
+  function openAdminAuthModal() {
+    if (adminAuthError) adminAuthError.style.display = 'none';
+    if (adminAuthInput) {
+      adminAuthInput.value = '';
+      adminAuthInput.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+    }
+    if (adminAuthModal) {
+      adminAuthModal.classList.add('active', 'open');
+      setTimeout(() => {
+        if (adminAuthInput) adminAuthInput.focus();
+      }, 100);
+    }
+  }
+
+  function closeAdminAuthModal() {
+    if (adminAuthModal) {
+      adminAuthModal.classList.remove('active', 'open');
+    }
+    if (adminAuthInput) adminAuthInput.value = '';
+    if (adminAuthError) adminAuthError.style.display = 'none';
+  }
+
+  function verifyAdminPasscode() {
+    const entered = adminAuthInput ? adminAuthInput.value.trim() : '';
+    if (entered.toUpperCase() === ADMIN_PASSCODE) {
+      isAdminAuthenticated = true;
+      sessionStorage.setItem('campus_pilot_admin_authenticated', 'true');
+      closeAdminAuthModal();
+      switchPortalMode('admin', true);
+      showToast('Passcode Verified (PSPK). Coordinator Access Granted.', 'success', 3000);
+    } else {
+      if (adminAuthError) adminAuthError.style.display = 'block';
+      if (adminAuthInput) {
+        adminAuthInput.style.borderColor = '#F43F5E';
+        adminAuthInput.classList.add('shake-anim');
+        setTimeout(() => adminAuthInput.classList.remove('shake-anim'), 450);
+        adminAuthInput.select();
+      }
+      showToast('Access Denied: Invalid Security Code', 'error', 3000);
+    }
+  }
+
+  function lockAdminConsole() {
+    isAdminAuthenticated = false;
+    sessionStorage.removeItem('campus_pilot_admin_authenticated');
+    switchPortalMode('student');
+    showToast('Admin Console locked. Session ended.', 'info', 2500);
+  }
+
+  if (btnCloseAdminAuth) btnCloseAdminAuth.addEventListener('click', closeAdminAuthModal);
+  if (btnCancelAdminAuth) btnCancelAdminAuth.addEventListener('click', closeAdminAuthModal);
+  if (btnSubmitAdminAuth) btnSubmitAdminAuth.addEventListener('click', (e) => {
+    e.preventDefault();
+    verifyAdminPasscode();
+  });
+  if (adminAuthForm) adminAuthForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    verifyAdminPasscode();
+  });
+  if (adminAuthInput) {
+    adminAuthInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        verifyAdminPasscode();
+      }
+    });
+  }
+  if (btnLockAdminConsole) btnLockAdminConsole.addEventListener('click', lockAdminConsole);
+
+  function switchPortalMode(mode, bypassedAuth = false) {
+    if (mode === 'admin') {
+      if (!isAdminAuthenticated && !bypassedAuth) {
+        openAdminAuthModal();
+        return;
+      }
+      if (btnRoleAdmin) btnRoleAdmin.classList.add('active');
+      if (btnRoleStudent) btnRoleStudent.classList.remove('active');
+      if (studentDashboardGrid) studentDashboardGrid.style.display = 'none';
+      if (adminConsoleView) adminConsoleView.style.display = 'flex';
+      populateAdminDashboard();
+      showToast('Switched to Staff & Coordinator Admin Console', 'info', 2000);
+    } else {
+      if (btnRoleStudent) btnRoleStudent.classList.add('active');
+      if (btnRoleAdmin) btnRoleAdmin.classList.remove('active');
+      if (studentDashboardGrid) studentDashboardGrid.style.display = 'grid';
+      if (adminConsoleView) adminConsoleView.style.display = 'none';
+      showToast('Switched to Student Portal', 'info', 2000);
+    }
+  }
+
+  if (btnRoleStudent) btnRoleStudent.addEventListener('click', () => switchPortalMode('student'));
+  if (btnRoleAdmin) btnRoleAdmin.addEventListener('click', () => switchPortalMode('admin'));
+
+  // 2. Admin Command Center Navigation Tabs
+  const adminTabs = document.querySelectorAll('.admin-nav-tab-btn');
+  adminTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      adminTabs.forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.admin-tab-pane').forEach(p => p.classList.remove('active'));
+
+      btn.classList.add('active');
+      const targetId = btn.getAttribute('data-admin-tab');
+      const pane = document.getElementById(targetId);
+      if (pane) pane.classList.add('active');
+    });
+  });
+
+  // 3. Admin Reports Filters
+  const filterDept = document.getElementById('admin-filter-dept');
+  const filterStatus = document.getElementById('admin-filter-status');
+  if (filterDept) filterDept.addEventListener('change', () => filterAndRenderAdminReports());
+  if (filterStatus) filterStatus.addEventListener('change', () => filterAndRenderAdminReports());
+
+  const refreshOutpassesBtn = document.getElementById('btn-refresh-outpasses-admin');
+  if (refreshOutpassesBtn) refreshOutpassesBtn.addEventListener('click', () => {
+    fetchRequestsAndPopulateLeftPane();
+    showToast('Outpass list refreshed', 'info', 1500);
+  });
+
+  // 4. Student Quick Actions & Interactive Modals
+  setupModalToggle('modal-trigger-outpass', 'modal-request-outpass', 'close-outpass-modal-btn');
+  setupModalToggle('modal-trigger-maint', 'modal-report-maintenance', 'close-maint-modal-btn');
+  setupModalToggle('modal-trigger-timings', 'modal-campus-timings', 'close-timings-modal-btn');
+  setupModalToggle('modal-trigger-hostel', 'modal-hostel-facilities', 'close-hostel-modal-btn');
+  setupModalToggle('modal-trigger-acad', 'modal-academic-regulations', 'close-acad-modal-btn');
+  setupModalToggle('modal-trigger-my-req', 'modal-student-requests', 'close-my-req-modal-btn');
+  setupModalToggle('modal-trigger-voice-studio', 'voice-studio-modal', 'close-voice-studio-btn');
+
+  // Wire Sidebar Buttons to rich interactive experiences
+  const allNavBtns = document.querySelectorAll('.sidebar-nav-menu .nav-item-btn, .sidebar-lower-menu .nav-item-btn');
+  function setActiveNavBtn(btn) {
+    allNavBtns.forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+  }
+
+  const navHome = document.getElementById('nav-btn-home');
+  const navAssistant = document.getElementById('nav-btn-assistant');
+  const navOutpass = document.getElementById('nav-btn-outpass');
+  const navReports = document.getElementById('nav-btn-reports');
+  const navFacilities = document.getElementById('nav-btn-facilities');
+  const navKnowledge = document.getElementById('nav-btn-knowledge');
+  const navMyRequests = document.getElementById('nav-btn-my-requests');
+  const navOperations = document.getElementById('nav-btn-operations');
+  const navSettings = document.getElementById('nav-btn-settings');
+  const navHelp = document.getElementById('nav-btn-help');
+
+  const openModal = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.add('active');
+      el.classList.add('open');
+    }
+  };
+
+  // Direct universal click-outside closer for all backdrops
+  document.querySelectorAll('.cmd-palette-backdrop, .modal-backdrop').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.remove('active', 'open');
+      }
+    });
+  });
+
+  // Dedicated close buttons wiring
+  const closePairs = [
+    ['close-outpass-modal-btn', 'modal-request-outpass'],
+    ['close-maint-modal-btn', 'modal-report-maintenance'],
+    ['close-timings-modal-btn', 'modal-campus-timings'],
+    ['close-hostel-modal-btn', 'modal-hostel-facilities'],
+    ['close-acad-modal-btn', 'modal-academic-regulations'],
+    ['close-my-req-modal-btn', 'modal-student-requests'],
+    ['close-voice-studio-btn', 'voice-studio-modal'],
+    ['close-trust-btn', 'trust-modal'],
+    ['close-gate-scanner-btn', 'gate-scanner-modal'],
+    ['close-analytics-btn', 'analytics-modal'],
+    ['close-profile-btn', 'student-profile-modal'],
+    ['close-admin-auth-btn', 'modal-admin-auth'],
+    ['btn-cancel-admin-auth', 'modal-admin-auth']
+  ];
+  closePairs.forEach(([btnId, modalId]) => {
+    const btn = document.getElementById(btnId);
+    const m = document.getElementById(modalId);
+    if (btn && m) {
+      btn.addEventListener('click', () => {
+        m.classList.remove('active', 'open');
+      });
+    }
+  });
+
+  if (navHome) {
+    navHome.addEventListener('click', () => {
+      document.querySelectorAll('.cmd-palette-backdrop, .modal-backdrop').forEach(m => m.classList.remove('active', 'open'));
+      switchPortalMode('student');
+      setActiveNavBtn(navHome);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  if (navAssistant) {
+    navAssistant.addEventListener('click', () => {
+      setActiveNavBtn(navAssistant);
+      openModal('voice-studio-modal');
+    });
+  }
+  if (navOutpass) {
+    navOutpass.addEventListener('click', () => {
+      setActiveNavBtn(navOutpass);
+      openModal('modal-request-outpass');
+    });
+  }
+  if (navReports) {
+    navReports.addEventListener('click', () => {
+      setActiveNavBtn(navReports);
+      openModal('modal-report-maintenance');
+    });
+  }
+  if (navFacilities) {
+    navFacilities.addEventListener('click', () => {
+      setActiveNavBtn(navFacilities);
+      openModal('modal-campus-timings');
+    });
+  }
+  if (navKnowledge) {
+    navKnowledge.addEventListener('click', () => {
+      setActiveNavBtn(navKnowledge);
+      openModal('modal-academic-regulations');
+    });
+  }
+  if (navMyRequests) {
+    navMyRequests.addEventListener('click', () => {
+      setActiveNavBtn(navMyRequests);
+      renderStudentOwnRequests();
+      openModal('modal-student-requests');
+    });
+  }
+  if (navOperations) {
+    navOperations.addEventListener('click', () => {
+      setActiveNavBtn(navOperations);
+      switchPortalMode('admin');
+    });
+  }
+  if (navSettings) {
+    navSettings.addEventListener('click', () => {
+      openModal('student-profile-modal');
+    });
+  }
+  if (navHelp) {
+    navHelp.addEventListener('click', () => {
+      openModal('trust-modal');
+    });
+  }
+
+  // Wire 6 Quick Action Cards on Home Dashboard
+  const actionCards = document.querySelectorAll('.quick-actions-grid .action-card');
+  if (actionCards.length >= 6) {
+    actionCards[0].onclick = (e) => { e.preventDefault(); openModal('modal-request-outpass'); };
+    actionCards[1].onclick = (e) => { e.preventDefault(); openModal('modal-report-maintenance'); };
+    actionCards[2].onclick = (e) => { e.preventDefault(); openModal('modal-campus-timings'); };
+    actionCards[3].onclick = (e) => { e.preventDefault(); openModal('modal-hostel-facilities'); };
+    actionCards[4].onclick = (e) => { e.preventDefault(); openModal('modal-academic-regulations'); };
+    actionCards[5].onclick = (e) => {
+      e.preventDefault();
+      renderStudentOwnRequests();
+      openModal('modal-student-requests');
+    };
+  }
+
+  // 5. Hero prompt pills
+  const promptPills = document.querySelectorAll('.hero-prompt-pill');
+  promptPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      const msg = pill.getAttribute('data-msg');
+      if (msg && chatInput && chatForm) {
+        chatInput.value = msg;
+        if (chatTray) chatTray.classList.add('active');
+        chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+      }
+    });
+  });
+
+  // 6. Interactive Student Outpass Form Submission
+  const outpassForm = document.getElementById('student-outpass-form');
+  if (outpassForm) {
+    outpassForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const dest = document.getElementById('outpass-destination').value.trim();
+      const leaveTime = document.getElementById('outpass-leave-time').value;
+      const returnTime = document.getElementById('outpass-return-time').value;
+      const reason = document.getElementById('outpass-reason').value.trim();
+      const parentPhone = document.getElementById('outpass-parent-phone').value.trim();
+
+      const trackingId = 'CP-2026-' + Math.floor(1000 + Math.random() * 9000);
+
+      try {
+        await apiFetch(`${API_BASE}/requests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'outpass',
+            title: `Outpass to ${dest}`,
+            description: reason,
+            destination: dest,
+            leave_time: leaveTime,
+            return_time: returnTime,
+            parent_phone: parentPhone,
+            urgency: 'medium'
+          })
+        });
+      } catch (err) {}
+
+      // Show generated Pass Card
+      const card = document.getElementById('outpass-generated-card');
+      if (card) {
+        card.style.display = 'block';
+        document.getElementById('gen-outpass-id').textContent = trackingId;
+        document.getElementById('gen-outpass-dest').textContent = dest;
+        document.getElementById('gen-outpass-dates').textContent = `Departure: ${leaveTime || 'Today'} • Expected Return: ${returnTime || 'Tomorrow'}`;
+      }
+
+      showToast(`Outpass request registered! Tracking Code: ${trackingId}`, 'success', 3500);
+      fetchRequestsAndPopulateLeftPane();
+    });
+  }
+
+  // 7. Interactive Maintenance Issue Dispatch Form Submission
+  const maintForm = document.getElementById('student-maintenance-form');
+  if (maintForm) {
+    maintForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const category = document.getElementById('maint-category').value;
+      const urgency = document.getElementById('maint-urgency').value;
+      const block = document.getElementById('maint-block').value;
+      const room = document.getElementById('maint-room').value.trim();
+      const description = document.getElementById('maint-description').value.trim();
+
+      const trackingId = 'CP-2026-' + Math.floor(1000 + Math.random() * 9000);
+
+      try {
+        await apiFetch(`${API_BASE}/requests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'complaint',
+            category: category,
+            title: `${category.toUpperCase()} defect in ${block}, ${room}`,
+            description: description,
+            location: `${block}, ${room}`,
+            urgency: urgency
+          })
+        });
+      } catch (err) {}
+
+      showToast(`Complaint registered with Facilities! Ref: ${trackingId}`, 'success', 3500);
+      const modal = document.getElementById('modal-report-maintenance');
+      if (modal) {
+        modal.classList.remove('active', 'open');
+      }
+      maintForm.reset();
+      fetchRequestsAndPopulateLeftPane();
+    });
+  }
+
+  // 8. Live Voice Studio Overlay Wiring
+  const studioMic = document.getElementById('btn-studio-mic');
+  const studioStatus = document.getElementById('studio-status-tag');
+  const studioBubble = document.getElementById('studio-transcript-bubble');
+  const studioSpectrum = document.getElementById('studio-spectrum');
+
+  if (studioMic) {
+    studioMic.addEventListener('click', () => {
+      if (!window.voiceEngine) return;
+      if (window.voiceEngine.isListening) {
+        window.voiceEngine.stopListening();
+        studioMic.classList.remove('is-listening');
+        if (studioStatus) studioStatus.textContent = 'Standby • Tap Mic to Converse';
+      } else {
+        window.voiceEngine.startListening();
+        studioMic.classList.add('is-listening');
+        if (studioStatus) studioStatus.textContent = 'Listening to your voice...';
+      }
+    });
+  }
+
+  // Quick Voice Suggestion Chips in Studio
+  document.querySelectorAll('.voice-chip-btn').forEach(chip => {
+    chip.addEventListener('click', async () => {
+      const query = chip.getAttribute('data-voice-msg');
+      if (!query) return;
+
+      if (studioBubble) studioBubble.textContent = `"${query}"`;
+      if (studioStatus) studioStatus.textContent = 'AI Thinking...';
+
+      try {
+        const res = await apiFetch(`${API_BASE}/chat/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: query, language: 'en', history: [] })
+        });
+        const data = await res.json();
+        const reply = data.reply || 'Request processed.';
+        if (studioBubble) studioBubble.textContent = reply;
+        if (studioStatus) studioStatus.textContent = 'Speaking response...';
+
+        if (window.voiceEngine) {
+          window.voiceEngine.speak(reply);
+        }
+      } catch (e) {
+        if (studioStatus) studioStatus.textContent = 'Error processing query';
+      }
+    });
+  });
+
+  // 9. Live Clock
+  const clockEl = document.getElementById('hero-live-clock');
+  function updateClock() {
+    if (!clockEl) return;
+    const now = new Date();
+    const opts = { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true };
+    clockEl.textContent = now.toLocaleDateString('en-GB', opts).replace(/,/g, '');
+  }
+  updateClock();
+  setInterval(updateClock, 30000);
+}
+
+// ---------------------------------------------------------------------------
+// 11. Admin Command Center Data Population & Actions
+// ---------------------------------------------------------------------------
+
+function populateAdminDashboard() {
+  filterAndRenderAdminReports();
+  renderAdminOutpassesTable();
+}
+
+function filterAndRenderAdminReports() {
+  const tbody = document.getElementById('admin-reports-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const deptFilter = document.getElementById('admin-filter-dept')?.value || 'all';
+  const statusFilter = document.getElementById('admin-filter-status')?.value || 'all';
+
+  let list = allRequestsList.filter(r => r.type !== 'outpass');
+  if (deptFilter !== 'all') {
+    list = list.filter(r => r.assigned_department === deptFilter);
+  }
+  if (statusFilter !== 'all') {
+    list = list.filter(r => r.status === statusFilter);
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No matching reports found</td></tr>';
+    return;
+  }
+
+  list.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong style="color: #38BDF8; font-family: var(--font-mono);">${escapeHtml(r.tracking_id)}</strong></td>
+      <td>
+        <div style="font-weight: 600; color: #FFFFFF;">${escapeHtml(r.title)}</div>
+        <div style="font-size: 0.72rem; color: #94A3B8;">${escapeHtml(r.category || 'General')} &bull; ${escapeHtml(r.assigned_department || 'Facilities')}</div>
+      </td>
+      <td>${escapeHtml(r.location || 'Campus')}</td>
+      <td>
+        <div>${escapeHtml(r.student_name || 'Student')}</div>
+        <div style="font-size: 0.7rem; color: #64748B;">${escapeHtml(r.student_email || '')}</div>
+      </td>
+      <td>
+        <span class="pill-badge pill-urgency-${escapeHtml(r.urgency || 'medium')}">${escapeHtml(r.urgency || 'normal')}</span>
+      </td>
+      <td>
+        <span class="pill-badge pill-${escapeHtml(r.status)}">${escapeHtml(r.status.replace('_', ' '))}</span>
+      </td>
+      <td>
+        <div style="display: flex; gap: 0.35rem;">
+          ${r.status === 'assigned' ? `<button class="btn-admin-action primary" onclick="window.adminTakeAction('${r.tracking_id}', 'start_progress')">Start</button>` : ''}
+          ${r.status !== 'resolved' ? `<button class="btn-admin-action" onclick="window.adminTakeAction('${r.tracking_id}', 'resolve')">Resolve</button>` : '<span style="color: #10B981; font-size: 0.75rem;">Done</span>'}
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderAdminOutpassesTable() {
+  const tbody = document.getElementById('admin-outpasses-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const outpasses = allRequestsList.filter(r => r.type === 'outpass');
+  if (outpasses.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">No active outpasses found</td></tr>';
+    return;
+  }
+
+  outpasses.forEach(p => {
+    const isApproved = p.status === 'parent_approved' || p.status === 'resolved' || p.status === 'confirmed';
+    const isDenied = p.status === 'parent_denied' || p.status === 'cancelled';
+    const voiceStatus = isApproved ? 'Verified YES (Call Confirmed)' : isDenied ? 'Denied (Parent Rejected)' : 'Awaiting Voice Call';
+    const voiceBadgeClass = isApproved ? 'pill-resolved' : isDenied ? 'pill-urgent' : 'pill-awaiting_details';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong style="color: #C084FC; font-family: var(--font-mono);">${escapeHtml(p.tracking_id)}</strong></td>
+      <td>
+        <div style="font-weight: 600; color: #FFFFFF;">${escapeHtml(p.student_name || 'Alex Student')}</div>
+        <div style="font-size: 0.72rem; color: #94A3B8;">Roll: CS-2026-042</div>
+      </td>
+      <td>
+        <div style="color: #FFFFFF;">${escapeHtml(p.title.replace('Outpass to ', '') || 'Home')}</div>
+        <div style="font-size: 0.72rem; color: #94A3B8;">${escapeHtml(p.description || 'Personal Leave')}</div>
+      </td>
+      <td>
+        <div style="font-size: 0.74rem; color: #CBD5E1;">Departure: Today</div>
+        <div style="font-size: 0.7rem; color: #64748B;">Return: 2 Days</div>
+      </td>
+      <td>
+        <div>${escapeHtml(p.parent_phone || '+91 98765 43210')}</div>
+        <div style="font-size: 0.7rem; color: #64748B;">Guardian: ${escapeHtml(p.parent_name || 'Jordan Parent')}</div>
+      </td>
+      <td>
+        <span class="pill-badge ${voiceBadgeClass}">${voiceStatus}</span>
+      </td>
+      <td>
+        <div style="display: flex; gap: 0.35rem;">
+          <button class="btn-admin-action primary" onclick="window.adminOutpassDecision('${p.tracking_id}', 'approve')">Approve</button>
+          <button class="btn-admin-action danger" onclick="window.adminOutpassDecision('${p.tracking_id}', 'deny')">Deny</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderStudentOwnRequests() {
+  const container = document.getElementById('student-own-requests-list');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (allRequestsList.length === 0) {
+    container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 2rem;">No active requests or outpasses submitted yet.</div>';
+    return;
+  }
+
+  allRequestsList.slice(0, 10).forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'misuse-alert-card';
+    item.style.borderLeft = r.type === 'outpass' ? '4px solid #10B981' : '4px solid #38BDF8';
+    item.innerHTML = `
+      <div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+          <strong style="color: #FFFFFF; font-size: 0.9rem;">${escapeHtml(r.tracking_id)}</strong>
+          <span class="pill-badge pill-${escapeHtml(r.status)}">${escapeHtml(r.status.replace('_', ' '))}</span>
+        </div>
+        <div style="font-size: 0.85rem; color: #F1F5F9; font-weight: 600;">${escapeHtml(r.title)}</div>
+        <div style="font-size: 0.74rem; color: #94A3B8; margin-top: 0.2rem;">Location: ${escapeHtml(r.location || 'Campus')} &bull; Updated: Just now</div>
+      </div>
+      <div>
+        ${r.type === 'outpass' ? `<button class="btn-subtab active" style="font-size: 0.72rem;" onclick="window.openScannerWithCode('${r.tracking_id}')">View QR</button>` : ''}
+      </div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 12. Global Actions Attached to Window
+// ---------------------------------------------------------------------------
+
+window.adminTakeAction = async function(trackingId, action) {
+  try {
+    await apiFetch(`${API_BASE}/requests/${trackingId}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action })
+    });
+    showToast(`Ticket ${trackingId} updated: ${action}`, 'success', 2000);
+    fetchRequestsAndPopulateLeftPane();
+  } catch (e) {
+    showToast(`Error updating ticket: ${e.message}`, 'error', 3000);
+  }
+};
+
+window.adminOutpassDecision = async function(trackingId, decision) {
+  try {
+    await apiFetch(`${API_BASE}/outpass/${trackingId}/parent-decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: decision === 'approve' ? 'approved' : 'denied' })
+    });
+    showToast(`Outpass ${trackingId} ${decision}d by Coordinator override!`, 'success', 2500);
+    fetchRequestsAndPopulateLeftPane();
+  } catch (e) {
+    showToast(`Outpass update error: ${e.message}`, 'error', 3000);
+  }
+};
+
+window.saveKnowledgeAnswer = function(id, topic) {
+  const input = document.getElementById(`ans-input-${id}`);
+  const answer = input ? input.value.trim() : '';
+  if (!answer) {
+    showToast('Please type an official response first', 'warning', 2000);
+    return;
+  }
+  const card = document.getElementById(`unans-card-${id}`);
+  if (card) {
+    card.innerHTML = `
+      <div style="color: #10B981; font-weight: 700; font-size: 0.88rem;">
+        &check; Published to Institutional AI Knowledge Base!
+      </div>
+      <div style="font-size: 0.78rem; color: #CBD5E1; margin-top: 0.25rem;">
+        <strong>${escapeHtml(topic)}:</strong> ${escapeHtml(answer)}
+      </div>
+    `;
+  }
+  showToast('Official policy answer published to AI Knowledge Base!', 'success', 3000);
+};
+
+window.handleMisuseAction = function(id, action) {
+  const card = document.getElementById(`alert-card-${id}`);
+  if (action === 'warn') {
+    showToast('Official disciplinary warning sent to student roll account & registered phone.', 'warning', 3500);
+  } else if (action === 'lock') {
+    showToast('Student outpass application privileges locked pending warden review.', 'error', 3500);
+  } else if (action === 'flag') {
+    showToast('Security audit profile flagged with elevated monitoring status.', 'warning', 3500);
+  } else if (action === 'dismiss') {
+    showToast('Alert cleared by coordinator.', 'info', 1500);
+  }
+  if (card) {
+    card.style.opacity = '0.35';
+    card.style.pointerEvents = 'none';
+  }
+};
+
+window.openScannerWithCode = function(code) {
+  const modal = document.getElementById('gate-scanner-modal');
+  const input = document.getElementById('gate-scan-input');
+  if (input) input.value = code;
+  if (modal) modal.classList.add('active', 'open');
+};

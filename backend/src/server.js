@@ -109,7 +109,14 @@ app.use(helmetMiddleware);
 app.use(cookieParser());
 
 // Strict CORS Allowlist (wildcard strictly prohibited)
-const defaultOrigins = ['http://localhost:5000', 'http://127.0.0.1:5000'];
+const defaultOrigins = [
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174'
+];
 const allowedOrigins = process.env.CORS_ALLOWLIST
   ? process.env.CORS_ALLOWLIST.split(',').map(s => s.trim())
   : defaultOrigins;
@@ -274,6 +281,63 @@ app.post('/api/auth/login', authLimiter, checkLoginLockout, validateBody(loginSc
     next(err);
   }
 });
+
+// Development / Demo Session Endpoint (Seamless login for dashboard UI)
+if (process.env.NODE_ENV !== 'production') {
+  app.post('/api/auth/demo-session', async (req, res, next) => {
+    try {
+      const email = req.body?.email || 'student@sample-college.test';
+      const userRes = await db.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+      if (userRes.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const user = userRes.rows[0];
+      const { accessToken, refreshToken, csrfToken } = await generateTokens(user, req);
+
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 15 * 60 * 1000
+      });
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        path: '/api/auth/refresh',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+      res.cookie('csrf_token', csrfToken, {
+        httpOnly: false,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+      });
+
+      const safeUser = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department,
+        roll_number: user.roll_number,
+        hostel_block: user.hostel_block,
+        room_no: user.room_no,
+        parent_name: user.parent_name,
+        parent_phone: user.parent_phone
+      };
+
+      res.json({
+        success: true,
+        user: safeUser,
+        accessToken,
+        csrfToken
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+}
 
 app.post('/api/auth/refresh', validateBody(refreshSchema), async (req, res, next) => {
   try {
