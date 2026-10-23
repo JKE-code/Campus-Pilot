@@ -1,8 +1,8 @@
 /**
  * CampusPilot AI — Multimodal 50/50 Voice AI Receptionist & Chatbot Controller
  */
-import { ThreeAvatar } from './threeAvatar.js';
-import { VoiceEngine } from './voiceEngine.js';
+import { ThreeAvatar } from './threeAvatar.js?v=2.4';
+import { VoiceEngine } from './voiceEngine.js?v=2.4';
 
 let threeAvatarInstance = null;
 let voiceEngineInstance = null;

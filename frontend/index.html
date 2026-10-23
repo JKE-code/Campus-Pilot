@@ -9,7 +9,15 @@
   
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles/app.css?v=2.3" />
+  <link rel="stylesheet" href="styles/app.css?v=2.4" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./scripts/vendor/three.module.js",
+      "three/": "./scripts/vendor/"
+    }
+  }
+  </script>
 </head>
 <body class="dashboard-body">
 
@@ -606,7 +614,7 @@
         <!-- 2. ADMIN NAVIGATION TABS -->
         <div class="admin-nav-tabs-bar" role="tablist">
           <button class="admin-nav-tab-btn active" data-admin-tab="adm-tab-reports" role="tab" aria-selected="true">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 2 2h12a2 2 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
             <span>Reports &amp; Complaints Ledger</span>
           </button>
           <button class="admin-nav-tab-btn" data-admin-tab="adm-tab-outpasses" role="tab" aria-selected="false">
@@ -639,14 +647,14 @@
               <p style="font-size: 0.78rem; color: #94A3B8;">Review, dispatch staff, and manage tickets submitted by students.</p>
             </div>
             <div style="display: flex; gap: 0.5rem;">
-              <select id="admin-filter-dept" class="sim-select" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.76rem;">
+              <select id="admin-filter-dept" class="sim-select" aria-label="Filter reports by department" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.76rem;">
                 <option value="all">All Departments</option>
                 <option value="Facilities & Maintenance">Facilities &amp; Maintenance</option>
                 <option value="Hostel Affairs">Hostel Affairs</option>
                 <option value="IT Support">IT Support</option>
                 <option value="Security Gate">Security Gate</option>
               </select>
-              <select id="admin-filter-status" class="sim-select" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.76rem;">
+              <select id="admin-filter-status" class="sim-select" aria-label="Filter reports by status" style="width: auto; padding: 0.4rem 0.75rem; font-size: 0.76rem;">
                 <option value="all">All Statuses</option>
                 <option value="assigned">Assigned</option>
                 <option value="in_progress">In Progress</option>
@@ -810,7 +818,7 @@
                 <span style="color: #FBBF24;">Confidence: 0.42 (Handbook missing EV policy)</span>
               </div>
               <div class="inline-kb-form">
-                <input type="text" id="ans-input-1" placeholder="Type official response (e.g. EV scooters are permitted at Parking Bay 2; hostel room charging is strictly prohibited)..." />
+                <input type="text" id="ans-input-1" aria-label="Official response for EV Charging Policy" placeholder="Type official response (e.g. EV scooters are permitted at Parking Bay 2; hostel room charging is strictly prohibited)..." />
                 <button class="btn-admin-action primary" data-action="save-kb" data-kb-id="1" data-kb-title="EV Charging Policy">Publish Answer to AI</button>
               </div>
             </div>
@@ -824,7 +832,7 @@
                 <span style="color: #FBBF24;">Confidence: 0.38 (Missing fee structure)</span>
               </div>
               <div class="inline-kb-form">
-                <input type="text" id="ans-input-2" placeholder="Type official response (e.g. Lost ID cards require Rs. 250 fee at Admin Block Window 4; duplicate card issued within 48 hours)..." />
+                <input type="text" id="ans-input-2" aria-label="Official response for Lost ID Card Policy" placeholder="Type official response (e.g. Lost ID cards require Rs. 250 fee at Admin Block Window 4; duplicate card issued within 48 hours)..." />
                 <button class="btn-admin-action primary" data-action="save-kb" data-kb-id="2" data-kb-title="Lost ID Card Policy">Publish Answer to AI</button>
               </div>
             </div>
@@ -838,7 +846,7 @@
                 <span style="color: #FBBF24;">Confidence: 0.51 (Handbook specifies gate only)</span>
               </div>
               <div class="inline-kb-form">
-                <input type="text" id="ans-input-3" placeholder="Type official response (e.g. Outside delivery riders are strictly restricted to Main Gate 1 Security Booth at all hours)..." />
+                <input type="text" id="ans-input-3" aria-label="Official response for Food Delivery Policy" placeholder="Type official response (e.g. Outside delivery riders are strictly restricted to Main Gate 1 Security Booth at all hours)..." />
                 <button class="btn-admin-action primary" data-action="save-kb" data-kb-id="3" data-kb-title="Food Delivery Policy">Publish Answer to AI</button>
               </div>
             </div>
@@ -852,7 +860,7 @@
                 <span style="color: #FBBF24;">Confidence: 0.45 (Missing day-scholar clause)</span>
               </div>
               <div class="inline-kb-form">
-                <input type="text" id="ans-input-4" placeholder="Type official response (e.g. Day scholars can access sports facilities on Saturday mornings with sports ID endorsement)..." />
+                <input type="text" id="ans-input-4" aria-label="Official response for Sports Access Policy" placeholder="Type official response (e.g. Day scholars can access sports facilities on Saturday mornings with sports ID endorsement)..." />
                 <button class="btn-admin-action primary" data-action="save-kb" data-kb-id="4" data-kb-title="Sports Access Policy">Publish Answer to AI</button>
               </div>
             </div>
@@ -1661,6 +1669,6 @@
   <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Scripts -->
-  <script type="module" src="scripts/app.js?v=2.3"></script>
+  <script type="module" src="scripts/app.js?v=2.4"></script>
 </body>
 </html>
