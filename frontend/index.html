@@ -9,14 +9,7 @@
   
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles/app.css" />
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "./scripts/vendor/three.module.js"
-    }
-  }
-  </script>
+  <link rel="stylesheet" href="styles/app.css?v=2.3" />
 </head>
 <body class="dashboard-body">
 
@@ -818,7 +811,7 @@
               </div>
               <div class="inline-kb-form">
                 <input type="text" id="ans-input-1" placeholder="Type official response (e.g. EV scooters are permitted at Parking Bay 2; hostel room charging is strictly prohibited)..." />
-                <button class="btn-admin-action primary" onclick="window.saveKnowledgeAnswer(1, 'EV Charging Policy')">Publish Answer to AI</button>
+                <button class="btn-admin-action primary" data-action="save-kb" data-kb-id="1" data-kb-title="EV Charging Policy">Publish Answer to AI</button>
               </div>
             </div>
 
@@ -832,7 +825,7 @@
               </div>
               <div class="inline-kb-form">
                 <input type="text" id="ans-input-2" placeholder="Type official response (e.g. Lost ID cards require Rs. 250 fee at Admin Block Window 4; duplicate card issued within 48 hours)..." />
-                <button class="btn-admin-action primary" onclick="window.saveKnowledgeAnswer(2, 'Lost ID Card Policy')">Publish Answer to AI</button>
+                <button class="btn-admin-action primary" data-action="save-kb" data-kb-id="2" data-kb-title="Lost ID Card Policy">Publish Answer to AI</button>
               </div>
             </div>
 
@@ -846,7 +839,7 @@
               </div>
               <div class="inline-kb-form">
                 <input type="text" id="ans-input-3" placeholder="Type official response (e.g. Outside delivery riders are strictly restricted to Main Gate 1 Security Booth at all hours)..." />
-                <button class="btn-admin-action primary" onclick="window.saveKnowledgeAnswer(3, 'Food Delivery Policy')">Publish Answer to AI</button>
+                <button class="btn-admin-action primary" data-action="save-kb" data-kb-id="3" data-kb-title="Food Delivery Policy">Publish Answer to AI</button>
               </div>
             </div>
 
@@ -860,7 +853,7 @@
               </div>
               <div class="inline-kb-form">
                 <input type="text" id="ans-input-4" placeholder="Type official response (e.g. Day scholars can access sports facilities on Saturday mornings with sports ID endorsement)..." />
-                <button class="btn-admin-action primary" onclick="window.saveKnowledgeAnswer(4, 'Sports Access Policy')">Publish Answer to AI</button>
+                <button class="btn-admin-action primary" data-action="save-kb" data-kb-id="4" data-kb-title="Sports Access Policy">Publish Answer to AI</button>
               </div>
             </div>
           </div>
@@ -887,9 +880,9 @@
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem;">
-                <button class="btn-admin-action danger" onclick="window.handleMisuseAction(1, 'warn')">Send Official Warning</button>
-                <button class="btn-admin-action" onclick="window.handleMisuseAction(1, 'lock')">Restrict Outpasses</button>
-                <button class="btn-admin-action" onclick="window.handleMisuseAction(1, 'dismiss')">Dismiss</button>
+                <button class="btn-admin-action danger" data-action="misuse-action" data-misuse-id="1" data-misuse-type="warn">Send Official Warning</button>
+                <button class="btn-admin-action" data-action="misuse-action" data-misuse-id="1" data-misuse-type="lock">Restrict Outpasses</button>
+                <button class="btn-admin-action" data-action="misuse-action" data-misuse-id="1" data-misuse-type="dismiss">Dismiss</button>
               </div>
             </div>
 
@@ -906,9 +899,9 @@
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem;">
-                <button class="btn-admin-action primary" onclick="window.handleMisuseAction(2, 'call')">Trigger Manual Staff Call</button>
-                <button class="btn-admin-action danger" onclick="window.handleMisuseAction(2, 'reject')">Reject Application</button>
-                <button class="btn-admin-action" onclick="window.handleMisuseAction(2, 'dismiss')">Dismiss</button>
+                <button class="btn-admin-action primary" data-action="misuse-action" data-misuse-id="2" data-misuse-type="call">Trigger Manual Staff Call</button>
+                <button class="btn-admin-action danger" data-action="misuse-action" data-misuse-id="2" data-misuse-type="reject">Reject Application</button>
+                <button class="btn-admin-action" data-action="misuse-action" data-misuse-id="2" data-misuse-type="dismiss">Dismiss</button>
               </div>
             </div>
 
@@ -925,8 +918,8 @@
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem;">
-                <button class="btn-admin-action" onclick="window.handleMisuseAction(3, 'notify')">Notify Student</button>
-                <button class="btn-admin-action" onclick="window.handleMisuseAction(3, 'dismiss')">Clear Alert</button>
+                <button class="btn-admin-action" data-action="misuse-action" data-misuse-id="3" data-misuse-type="notify">Notify Student</button>
+                <button class="btn-admin-action" data-action="misuse-action" data-misuse-id="3" data-misuse-type="dismiss">Clear Alert</button>
               </div>
             </div>
 
@@ -943,8 +936,8 @@
                 </div>
               </div>
               <div style="display: flex; gap: 0.5rem;">
-                <button class="btn-admin-action danger" onclick="window.handleMisuseAction(4, 'flag')">Flag Security Profile</button>
-                <button class="btn-admin-action" onclick="window.handleMisuseAction(4, 'dismiss')">Dismiss</button>
+                <button class="btn-admin-action danger" data-action="misuse-action" data-misuse-id="4" data-misuse-type="flag">Flag Security Profile</button>
+                <button class="btn-admin-action" data-action="misuse-action" data-misuse-id="4" data-misuse-type="dismiss">Dismiss</button>
               </div>
             </div>
           </div>
@@ -1295,7 +1288,7 @@
           Access to student reports ledger, outpass approvals, and misuse telemetry requires coordinator authorization. Enter your predefined access code.
         </p>
 
-        <form id="admin-auth-form" onsubmit="return false;">
+        <form id="admin-auth-form">
           <div class="form-group" style="margin-bottom: 1rem; text-align: left;">
             <label for="admin-auth-passcode" style="font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); display: block; margin-bottom: 0.4rem;">Coordinator Access Code</label>
             <input 
@@ -1668,6 +1661,6 @@
   <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Scripts -->
-  <script type="module" src="scripts/app.js"></script>
+  <script type="module" src="scripts/app.js?v=2.3"></script>
 </body>
 </html>

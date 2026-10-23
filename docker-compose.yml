@@ -60,6 +60,7 @@ services:
     ports:
       - "8080:80"
     volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/nginx.conf:ro
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./frontend/styles:/usr/share/nginx/html/styles:ro
       - ./frontend/scripts:/usr/share/nginx/html/scripts:ro

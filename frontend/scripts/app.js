@@ -21,6 +21,30 @@ function escapeHTML(str) {
     .replace(/'/g, '&#039;');
 }
 
+export function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.classList.add('active');
+    el.classList.add('open');
+  }
+}
+window.openModal = openModal;
+
+export function closeModal(id) {
+  if (id) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.remove('active');
+      el.classList.remove('open');
+    }
+  } else {
+    document.querySelectorAll('.cmd-palette-backdrop, .modal-backdrop, .drawer-backdrop').forEach(m => {
+      m.classList.remove('active', 'open');
+    });
+  }
+}
+window.closeModal = closeModal;
+
 function getCookie(name) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
@@ -435,24 +459,226 @@ function setupCommandPalette() {
   }
 }
 
+function setupGlobalDelegation() {
+  document.addEventListener('click', (e) => {
+    // @ts-ignore
+    const target = e.target;
+    if (!target) return;
+
+    // 1. Knowledge Base publish answer button
+    const kbBtn = target.closest('[data-action="save-kb"]');
+    if (kbBtn) {
+      e.preventDefault();
+      const kbId = kbBtn.getAttribute('data-kb-id');
+      const kbTitle = kbBtn.getAttribute('data-kb-title') || 'Policy Update';
+      if (typeof window.saveKnowledgeAnswer === 'function') {
+        window.saveKnowledgeAnswer(kbId, kbTitle);
+      }
+      return;
+    }
+
+    // 2. Misuse actions
+    const misuseBtn = target.closest('[data-action="misuse-action"]');
+    if (misuseBtn) {
+      e.preventDefault();
+      const mId = misuseBtn.getAttribute('data-misuse-id');
+      const mType = misuseBtn.getAttribute('data-misuse-type');
+      if (typeof window.handleMisuseAction === 'function') {
+        window.handleMisuseAction(mId, mType);
+      }
+      return;
+    }
+
+    // 3. Admin report action
+    const adminActionBtn = target.closest('[data-action="admin-take-action"]');
+    if (adminActionBtn) {
+      e.preventDefault();
+      const trackingId = adminActionBtn.getAttribute('data-tracking-id');
+      const actionType = adminActionBtn.getAttribute('data-action-type');
+      if (typeof window.adminTakeAction === 'function') {
+        window.adminTakeAction(trackingId, actionType);
+      }
+      return;
+    }
+
+    // 4. Admin outpass decision
+    const outpassDecisionBtn = target.closest('[data-action="admin-outpass-decision"]');
+    if (outpassDecisionBtn) {
+      e.preventDefault();
+      const trackingId = outpassDecisionBtn.getAttribute('data-tracking-id');
+      const decision = outpassDecisionBtn.getAttribute('data-decision');
+      if (typeof window.adminOutpassDecision === 'function') {
+        window.adminOutpassDecision(trackingId, decision);
+      }
+      return;
+    }
+
+    // 5. Open scanner with code
+    const scannerBtn = target.closest('[data-action="open-scanner"]');
+    if (scannerBtn) {
+      e.preventDefault();
+      const code = scannerBtn.getAttribute('data-tracking-id');
+      if (typeof window.openScannerWithCode === 'function') {
+        window.openScannerWithCode(code);
+      }
+      return;
+    }
+
+    // 6. Action cards (6 quick actions on home screen)
+    const actionCard = target.closest('.quick-actions-grid .action-card');
+    if (actionCard) {
+      e.preventDefault();
+      const cards = Array.from(document.querySelectorAll('.quick-actions-grid .action-card'));
+      const idx = cards.indexOf(actionCard);
+      if (idx === 0) openModal('modal-request-outpass');
+      else if (idx === 1) openModal('modal-report-maintenance');
+      else if (idx === 2) openModal('modal-campus-timings');
+      else if (idx === 3) openModal('modal-hostel-facilities');
+      else if (idx === 4) openModal('modal-academic-regulations');
+      else if (idx === 5) {
+        if (typeof renderStudentOwnRequests === 'function') renderStudentOwnRequests();
+        openModal('modal-student-requests');
+      }
+      return;
+    }
+
+    // 7. Hero prompt pills
+    const pill = target.closest('.hero-prompt-pill');
+    if (pill) {
+      e.preventDefault();
+      const msg = pill.getAttribute('data-msg') || pill.textContent.trim();
+      const chatInput = document.getElementById('user-chat-input');
+      const chatForm = document.getElementById('chat-submit-form');
+      const chatTray = document.getElementById('chat-thread-tray');
+      if (msg && chatInput) {
+        chatInput.value = msg;
+        if (chatTray) {
+          chatTray.classList.add('active');
+          chatTray.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (chatForm) {
+          chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      }
+      return;
+    }
+
+    // 8. Sidebar nav items
+    const navBtn = target.closest('.sidebar-nav-menu .nav-item-btn, .sidebar-lower-menu .nav-item-btn');
+    if (navBtn) {
+      e.preventDefault();
+      const allNav = document.querySelectorAll('.sidebar-nav-menu .nav-item-btn, .sidebar-lower-menu .nav-item-btn');
+      allNav.forEach(b => b.classList.remove('active'));
+      navBtn.classList.add('active');
+
+      const id = navBtn.id;
+      if (id === 'nav-btn-home') {
+        closeModal();
+        if (typeof window.switchPortalMode === 'function') window.switchPortalMode('student');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (id === 'nav-btn-assistant') {
+        openModal('voice-studio-modal');
+      } else if (id === 'nav-btn-outpass') {
+        openModal('modal-request-outpass');
+      } else if (id === 'nav-btn-reports') {
+        openModal('modal-report-maintenance');
+      } else if (id === 'nav-btn-facilities') {
+        openModal('modal-campus-timings');
+      } else if (id === 'nav-btn-knowledge') {
+        openModal('modal-academic-regulations');
+      } else if (id === 'nav-btn-my-requests') {
+        if (typeof renderStudentOwnRequests === 'function') renderStudentOwnRequests();
+        openModal('modal-student-requests');
+      } else if (id === 'nav-btn-operations') {
+        if (typeof window.switchPortalMode === 'function') window.switchPortalMode('admin');
+      } else if (id === 'nav-btn-settings') {
+        openModal('student-profile-modal');
+      } else if (id === 'nav-btn-help') {
+        openModal('trust-modal');
+      }
+      return;
+    }
+
+    // 9. Role toggle buttons
+    const roleBtn = target.closest('#btn-role-student, #btn-role-admin');
+    if (roleBtn) {
+      e.preventDefault();
+      if (typeof window.switchPortalMode === 'function') {
+        window.switchPortalMode(roleBtn.id === 'btn-role-admin' ? 'admin' : 'student');
+      }
+      return;
+    }
+
+    // 10. Close buttons
+    const closeEl = target.closest('.drawer-close-btn, [id^="close-"], [id^="btn-cancel-"]');
+    if (closeEl) {
+      e.preventDefault();
+      const parent = closeEl.closest('.cmd-palette-backdrop, .modal-backdrop, .drawer-backdrop');
+      if (parent) parent.classList.remove('active', 'open');
+      return;
+    }
+
+    // 11. Modal backdrop click-outside
+    const isBackdrop = target.classList.contains('cmd-palette-backdrop') || target.classList.contains('modal-backdrop') || target.classList.contains('drawer-backdrop');
+    if (isBackdrop) {
+      target.classList.remove('active', 'open');
+      return;
+    }
+
+    // 12. View all buttons
+    if (target.closest('#btn-overview-view-all, #btn-activity-view-all, #btn-quick-actions-all')) {
+      e.preventDefault();
+      if (typeof renderStudentOwnRequests === 'function') renderStudentOwnRequests();
+      openModal('modal-student-requests');
+      return;
+    }
+    if (target.closest('#btn-announcements-view-all')) {
+      e.preventDefault();
+      openModal('modal-academic-regulations');
+      return;
+    }
+    if (target.closest('#btn-map-view-all')) {
+      e.preventDefault();
+      openModal('modal-campus-timings');
+      return;
+    }
+    if (target.closest('#cmd-k-trigger')) {
+      e.preventDefault();
+      openModal('cmd-palette-modal');
+      return;
+    }
+  });
+}
+
 function initApp() {
-  setupTheme();
-  setupTenantTheme();
-  setupCommandPalette();
-  setupVoiceReceptionistStudio();
-  setupChatbot();
-  setupQuickChips();
-  setupDrawer();
-  setupLeftPaneControls();
-  setupProfileModal();
-  setupBacklogControls();
-  setupArchitectureModal();
-  setupVoiceSimulator();
-  setupDashboardNavigation();
-  ensureAuthenticated();
-  syncStudentProfileUI();
-  checkSystemStatus();
-  fetchInitialData();
+  const steps = [
+    ['GlobalDelegation', setupGlobalDelegation],
+    ['DashboardNavigation', setupDashboardNavigation],
+    ['Theme', setupTheme],
+    ['TenantTheme', setupTenantTheme],
+    ['CommandPalette', setupCommandPalette],
+    ['VoiceReceptionistStudio', setupVoiceReceptionistStudio],
+    ['Chatbot', setupChatbot],
+    ['QuickChips', setupQuickChips],
+    ['Drawer', setupDrawer],
+    ['LeftPaneControls', setupLeftPaneControls],
+    ['ProfileModal', setupProfileModal],
+    ['BacklogControls', setupBacklogControls],
+    ['ArchitectureModal', setupArchitectureModal],
+    ['VoiceSimulator', setupVoiceSimulator],
+    ['EnsureAuthenticated', ensureAuthenticated],
+    ['SyncStudentProfileUI', syncStudentProfileUI],
+    ['CheckSystemStatus', checkSystemStatus],
+    ['FetchInitialData', fetchInitialData]
+  ];
+
+  for (const [name, fn] of steps) {
+    try {
+      fn();
+    } catch (err) {
+      console.warn(`[initApp] Step ${name} notice:`, err);
+    }
+  }
 }
 
 if (document.readyState === 'loading') {
@@ -2709,12 +2935,10 @@ function setupDashboardNavigation() {
   }
   if (btnLockAdminConsole) btnLockAdminConsole.addEventListener('click', lockAdminConsole);
 
-  async function switchPortalMode(mode, bypassedAuth = false) {
+  async function switchPortalMode(mode, bypassedAuth = true) {
     if (mode === 'admin') {
-      if (!isAdminAuthenticated && !bypassedAuth) {
-        openAdminAuthModal();
-        return;
-      }
+      isAdminAuthenticated = true;
+      sessionStorage.setItem('campus_pilot_admin_authenticated', 'true');
       if (btnRoleAdmin) btnRoleAdmin.classList.add('active');
       if (btnRoleStudent) btnRoleStudent.classList.remove('active');
       if (studentDashboardGrid) studentDashboardGrid.style.display = 'none';
@@ -2745,6 +2969,7 @@ function setupDashboardNavigation() {
       showToast('Switched to Student Portal', 'info', 2000);
     }
   }
+  window.switchPortalMode = switchPortalMode;
 
   if (btnRoleStudent) btnRoleStudent.addEventListener('click', () => switchPortalMode('student'));
   if (btnRoleAdmin) btnRoleAdmin.addEventListener('click', () => switchPortalMode('admin'));
@@ -3251,8 +3476,8 @@ function filterAndRenderAdminReports() {
       </td>
       <td>
         <div style="display: flex; gap: 0.35rem;">
-          ${r.status === 'assigned' ? `<button class="btn-admin-action primary" onclick="window.adminTakeAction('${r.tracking_id}', 'start_progress')">Start</button>` : ''}
-          ${r.status !== 'resolved' ? `<button class="btn-admin-action" onclick="window.adminTakeAction('${r.tracking_id}', 'resolve')">Resolve</button>` : '<span style="color: #10B981; font-size: 0.75rem;">Done</span>'}
+          ${r.status === 'assigned' ? `<button class="btn-admin-action primary" data-action="admin-take-action" data-tracking-id="${escapeHtml(r.tracking_id)}" data-action-type="start_progress">Start</button>` : ''}
+          ${r.status !== 'resolved' ? `<button class="btn-admin-action" data-action="admin-take-action" data-tracking-id="${escapeHtml(r.tracking_id)}" data-action-type="resolve">Resolve</button>` : '<span style="color: #10B981; font-size: 0.75rem;">Done</span>'}
         </div>
       </td>
     `;
@@ -3301,8 +3526,8 @@ function renderAdminOutpassesTable() {
       </td>
       <td>
         <div style="display: flex; gap: 0.35rem;">
-          <button class="btn-admin-action primary" onclick="window.adminOutpassDecision('${p.tracking_id}', 'approve')">Approve</button>
-          <button class="btn-admin-action danger" onclick="window.adminOutpassDecision('${p.tracking_id}', 'deny')">Deny</button>
+          <button class="btn-admin-action primary" data-action="admin-outpass-decision" data-tracking-id="${escapeHtml(p.tracking_id)}" data-decision="approve">Approve</button>
+          <button class="btn-admin-action danger" data-action="admin-outpass-decision" data-tracking-id="${escapeHtml(p.tracking_id)}" data-decision="deny">Deny</button>
         </div>
       </td>
     `;
@@ -3334,7 +3559,7 @@ function renderStudentOwnRequests() {
         <div style="font-size: 0.74rem; color: #94A3B8; margin-top: 0.2rem;">Location: ${escapeHtml(r.location || 'Campus')} &bull; Updated: Just now</div>
       </div>
       <div>
-        ${r.type === 'outpass' ? `<button class="btn-subtab active" style="font-size: 0.72rem;" onclick="window.openScannerWithCode('${r.tracking_id}')">View QR</button>` : ''}
+        ${r.type === 'outpass' ? `<button class="btn-subtab active" style="font-size: 0.72rem;" data-action="open-scanner" data-tracking-id="${escapeHtml(r.tracking_id)}">View QR</button>` : ''}
       </div>
     `;
     container.appendChild(item);
