@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,7 +8,7 @@ services:
       POSTGRES_PASSWORD: postgrespassword
       POSTGRES_DB: campuspilot
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - campuspilot_pgdata:/var/lib/postgresql/data
       - ./database/00_init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql:ro
@@ -31,21 +29,22 @@ services:
     container_name: campuspilot_backend
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3000
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=campuspilot_app
-      - POSTGRES_PASSWORD=campuspilot_app_secure_pass_2026
+      - POSTGRES_PASSWORD=app_secure_password
       - POSTGRES_DB=campuspilot
       - REQUIRE_REAL_DB=true
-      - DEMO_MODE=false
+      - DEMO_MODE=true
       - JWT_SECRET=campuspilot_prod_jwt_secret_key_32chars_min!
       - VOICE_HMAC_SECRET=campuspilot_prod_voice_hmac_secret_32char!
       - OUTPASS_HMAC_SECRET=campuspilot_prod_voice_hmac_secret_32char!
-      - CORS_ALLOWLIST=http://localhost,http://localhost:8080,http://frontend
+      - VOICE_WEBHOOK_SECRET=campuspilot_prod_voice_webhook_secret_32chars!
+      - CORS_ALLOWLIST=http://localhost,http://localhost:8080,http://frontend,http://localhost:5005,http://localhost:5173
     ports:
-      - "3000:3000"
+      - "${BACKEND_DOCKER_PORT:-3001}:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,6 +59,11 @@ services:
     restart: unless-stopped
     ports:
       - "8080:80"
+    volumes:
+      - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
+      - ./frontend/styles:/usr/share/nginx/html/styles:ro
+      - ./frontend/scripts:/usr/share/nginx/html/scripts:ro
+      - ./frontend/manifest.json:/usr/share/nginx/html/manifest.json:ro
     depends_on:
       - backend
     networks:

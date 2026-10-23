@@ -20,7 +20,7 @@ const { getEmbeddingProvider } = require('./embedding_provider');
 function chunkDocument(text) {
   if (!text || typeof text !== 'string') return [];
 
-  const lines = text.split('\n');
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
   const chunks = [];
   let currentTitle = 'General Information';
   let currentCitation = '§0.0 General Campus Policy';
@@ -28,7 +28,7 @@ function chunkDocument(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const headerMatch = line.match(/^#{1,3}\s+(.+)$/);
+    const headerMatch = line.trim().match(/^#{1,3}\s+(.+)$/);
 
     if (headerMatch) {
       if (currentLines.join('').trim().length > 20) {

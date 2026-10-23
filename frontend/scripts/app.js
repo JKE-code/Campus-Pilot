@@ -28,18 +28,63 @@ function getCookie(name) {
   return null;
 }
 
-function apiFetch(url, options = {}) {
+async function acquireDemoAuth() {
+  try {
+    const res = await fetch(`${API_BASE}/auth/demo-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'student@sample-college.test' })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.accessToken) localStorage.setItem('campuspilot_access_token', data.accessToken);
+      if (data.csrfToken) localStorage.setItem('campuspilot_csrf', data.csrfToken);
+      if (data.user) {
+        currentStudent = {
+          name: data.user.name,
+          email: data.user.email,
+          phone: data.user.phone || '+91 9999999999',
+          roll: data.user.roll_number || 'CS-2026-001',
+          parent_name: data.user.parent_name || 'Jordan Parent',
+          parent_phone: data.user.parent_phone || '+15550100020',
+          dept: data.user.department || 'Computer Science',
+          hostel: `${data.user.hostel_block || 'Residence Hall A'}, Room ${data.user.room_no || '302'}`
+        };
+        syncStudentProfileUI();
+      }
+      return data;
+    }
+  } catch (err) {
+    console.warn('Auto auth acquisition:', err);
+  }
+  return null;
+}
+
+async function apiFetch(url, options = {}, isRetry = false) {
   options.credentials = 'include';
   options.headers = options.headers || {};
-  const csrf = getCookie('csrf_token') || localStorage.getItem('campuspilot_csrf');
+  let csrf = getCookie('csrf_token') || localStorage.getItem('campuspilot_csrf');
+  let token = localStorage.getItem('campuspilot_access_token');
+
+  if (!token && !url.includes('/auth/')) {
+    await acquireDemoAuth();
+    token = localStorage.getItem('campuspilot_access_token');
+    csrf = getCookie('csrf_token') || localStorage.getItem('campuspilot_csrf');
+  }
+
   if (csrf && !options.headers['X-CSRF-Token']) {
     options.headers['X-CSRF-Token'] = csrf;
   }
-  const token = localStorage.getItem('campuspilot_access_token');
   if (token && !options.headers['Authorization']) {
     options.headers['Authorization'] = `Bearer ${token}`;
   }
-  return fetch(url, options);
+
+  const res = await fetch(url, options);
+  if (res.status === 401 && !isRetry && !url.includes('/auth/')) {
+    await acquireDemoAuth();
+    return apiFetch(url, options, true);
+  }
+  return res;
 }
 
 async function ensureAuthenticated() {
@@ -62,64 +107,7 @@ async function ensureAuthenticated() {
     }
   } catch (e) {}
 
-  // If not authenticated via cookie, check stored token or prompt
-  try {
-    const savedToken = localStorage.getItem('campuspilot_access_token');
-    if (savedToken) {
-      const retryMe = await apiFetch(`${API_BASE}/auth/me`);
-      if (retryMe.ok) {
-        const data = await retryMe.json();
-        currentStudent = {
-          name: data.user.name,
-          email: data.user.email,
-          phone: data.user.phone || '',
-          roll: data.user.roll_number || 'CS-2026-042',
-          parent_name: data.user.parent_name || 'Verified Guardian',
-          parent_phone: data.user.parent_phone || '',
-          dept: data.user.department || 'Computer Science & Engineering',
-          hostel: `${data.user.hostel_block || 'Hostel Block A'}, Room ${data.user.room_no || '302'}`
-        };
-        syncStudentProfileUI();
-        return;
-      }
-    }
-  } catch (e) {}
-
-  // If still unauthenticated, automatically acquire active demo session
-  try {
-    const demoRes = await apiFetch(`${API_BASE}/auth/demo-session`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'student@sample-college.test' })
-    });
-    if (demoRes.ok) {
-      const data = await demoRes.json();
-      if (data.accessToken) {
-        localStorage.setItem('campuspilot_access_token', data.accessToken);
-      }
-      if (data.csrfToken) {
-        localStorage.setItem('campuspilot_csrf', data.csrfToken);
-      }
-      if (data.user) {
-        currentStudent = {
-          name: data.user.name,
-          email: data.user.email,
-          phone: data.user.phone || '+91 9999999999',
-          roll: data.user.roll_number || 'CS-2026-001',
-          parent_name: data.user.parent_name || 'Jordan Parent',
-          parent_phone: data.user.parent_phone || '+15550100020',
-          dept: data.user.department || 'Computer Science',
-          hostel: `${data.user.hostel_block || 'Residence Hall A'}, Room ${data.user.room_no || '302'}`
-        };
-        syncStudentProfileUI();
-      }
-      // Trigger data fetch now that authenticated
-      fetchRequestsAndPopulateLeftPane();
-      fetchDrawerData();
-    }
-  } catch (err) {
-    console.warn('Auto demo-session init notice:', err);
-  }
+  await acquireDemoAuth();
 }
 
 // Student Profile State (Default Sample Student)
@@ -447,7 +435,7 @@ function setupCommandPalette() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function initApp() {
   setupTheme();
   setupTenantTheme();
   setupCommandPalette();
@@ -465,7 +453,13 @@ document.addEventListener('DOMContentLoaded', () => {
   syncStudentProfileUI();
   checkSystemStatus();
   fetchInitialData();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 // ---------------------------------------------------------------------------
 // 0. Voice AI Receptionist Studio & 3D Avatar Controller
@@ -671,16 +665,16 @@ function setupVoiceReceptionistStudio() {
 // 1. Health & Initial Data
 // ---------------------------------------------------------------------------
 async function checkSystemStatus() {
-  const statusEl = document.getElementById('system-status-indicator');
+  const statusEl = document.getElementById('system-status-indicator') || document.querySelector('.topbar-status-pill span:last-child');
   try {
     const res = await apiFetch(`${API_BASE}/health`);
     if (res.ok) {
-      statusEl.textContent = '2 Workflows Live & Operational';
+      if (statusEl) statusEl.textContent = 'All Systems Online';
     } else {
-      statusEl.textContent = 'Degraded';
+      if (statusEl) statusEl.textContent = 'Degraded';
     }
   } catch (err) {
-    statusEl.textContent = 'Backend Offline';
+    if (statusEl) statusEl.textContent = 'Backend Offline';
   }
 }
 
@@ -726,14 +720,21 @@ function setupChatbot() {
   const input = document.getElementById('user-chat-input');
   const consentCheckbox = document.getElementById('voice-consent-checkbox');
 
+  if (!form) return;
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const message = input.value.trim();
+    const message = input ? input.value.trim() : '';
     if (!message) return;
 
     // 1. Render User Message in Chat
     renderUserMessage(message);
-    input.value = '';
+    if (input) input.value = '';
+
+    const chatTray = document.getElementById('chat-thread-tray');
+    if (chatTray) {
+      chatTray.classList.add('active');
+      chatTray.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     // Set 3D Avatar state to thinking
     if (window.threeAvatar) window.threeAvatar.setState('thinking');
@@ -756,7 +757,7 @@ function setupChatbot() {
           parent_name: currentStudent.parent_name,
           parent_phone: currentStudent.parent_phone,
           student_roll: currentStudent.roll,
-          call_consent: consentCheckbox.checked
+          call_consent: consentCheckbox ? consentCheckbox.checked : true
         })
       });
 
@@ -889,7 +890,7 @@ function renderBotResponse(data) {
   row.appendChild(payload);
   thread.appendChild(row);
 
-  const fullReply = data.reply || '';
+  const fullReply = data.reply || data.message || data.error || (data.ticket ? `Request ${data.ticket.tracking_id} registered.` : 'Your query has been processed.');
   const isReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Speak aloud via AI receptionist voice engine if enabled
@@ -1510,16 +1511,19 @@ function selectTicketForInspection(trackingId) {
 // 5. Quick Chips & Drawer
 // ---------------------------------------------------------------------------
 function setupQuickChips() {
-  const chips = document.querySelectorAll('.intent-chip');
+  const chips = document.querySelectorAll('.intent-chip, .hero-prompt-pill');
   const input = document.getElementById('user-chat-input');
   const form = document.getElementById('chat-submit-form');
+  const tray = document.getElementById('chat-thread-tray');
 
   chips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      const msg = chip.getAttribute('data-msg');
-      if (msg) {
+    chip.addEventListener('click', (e) => {
+      e.preventDefault();
+      const msg = chip.getAttribute('data-msg') || chip.textContent.trim();
+      if (msg && input && form) {
         input.value = msg;
-        form.dispatchEvent(new Event('submit'));
+        if (tray) tray.classList.add('active');
+        form.dispatchEvent(new Event('submit', { cancelable: true }));
       }
     });
   });
@@ -2705,7 +2709,7 @@ function setupDashboardNavigation() {
   }
   if (btnLockAdminConsole) btnLockAdminConsole.addEventListener('click', lockAdminConsole);
 
-  function switchPortalMode(mode, bypassedAuth = false) {
+  async function switchPortalMode(mode, bypassedAuth = false) {
     if (mode === 'admin') {
       if (!isAdminAuthenticated && !bypassedAuth) {
         openAdminAuthModal();
@@ -2715,6 +2719,19 @@ function setupDashboardNavigation() {
       if (btnRoleStudent) btnRoleStudent.classList.remove('active');
       if (studentDashboardGrid) studentDashboardGrid.style.display = 'none';
       if (adminConsoleView) adminConsoleView.style.display = 'flex';
+      try {
+        const authRes = await fetch(`${API_BASE}/auth/demo-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'admin@sample-college.test' })
+        });
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData.accessToken) localStorage.setItem('campuspilot_access_token', authData.accessToken);
+          if (authData.csrfToken) localStorage.setItem('campuspilot_csrf', authData.csrfToken);
+        }
+      } catch (e) {}
+      await fetchInitialData();
       populateAdminDashboard();
       showToast('Switched to Staff & Coordinator Admin Console', 'info', 2000);
     } else {
@@ -2722,6 +2739,9 @@ function setupDashboardNavigation() {
       if (btnRoleAdmin) btnRoleAdmin.classList.remove('active');
       if (studentDashboardGrid) studentDashboardGrid.style.display = 'grid';
       if (adminConsoleView) adminConsoleView.style.display = 'none';
+      try {
+        await acquireDemoAuth();
+      } catch (e) {}
       showToast('Switched to Student Portal', 'info', 2000);
     }
   }
@@ -2906,13 +2926,121 @@ function setupDashboardNavigation() {
   // 5. Hero prompt pills
   const promptPills = document.querySelectorAll('.hero-prompt-pill');
   promptPills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      const msg = pill.getAttribute('data-msg');
-      if (msg && chatInput && chatForm) {
+    pill.addEventListener('click', (e) => {
+      e.preventDefault();
+      const msg = pill.getAttribute('data-msg') || pill.textContent.trim();
+      if (msg && chatInput) {
         chatInput.value = msg;
-        if (chatTray) chatTray.classList.add('active');
+        if (chatTray) {
+          chatTray.classList.add('active');
+          chatTray.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (chatForm) {
+          chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      }
+    });
+  });
+
+  // Tray toggle minimize/maximize
+  const btnToggleTray = document.getElementById('btn-toggle-chat-tray');
+  if (btnToggleTray && chatTray) {
+    btnToggleTray.addEventListener('click', () => {
+      chatTray.classList.toggle('active');
+    });
+  }
+
+  // Topbar search capsule & avatar & notifications
+  const topbarSearch = document.getElementById('topbar-search-trigger') || document.getElementById('cmd-k-trigger');
+  if (topbarSearch) topbarSearch.addEventListener('click', () => openModal('cmd-palette-modal'));
+
+  const topbarAvatar = document.getElementById('topbar-avatar-btn');
+  if (topbarAvatar) topbarAvatar.addEventListener('click', () => openModal('student-profile-modal'));
+
+  const notifBtn = document.getElementById('btn-notifications');
+  if (notifBtn) {
+    notifBtn.addEventListener('click', () => {
+      renderStudentOwnRequests();
+      openModal('modal-student-requests');
+    });
+  }
+
+  // Bottom capsule mode switchers
+  const btnVoiceMode = document.getElementById('btn-mode-voice') || document.getElementById('btn-switch-voice-mode');
+  const btnTextMode = document.getElementById('btn-mode-text') || document.getElementById('btn-switch-text-mode');
+  if (btnVoiceMode) {
+    btnVoiceMode.addEventListener('click', () => {
+      btnVoiceMode.classList.add('active');
+      if (btnTextMode) btnTextMode.classList.remove('active');
+      openModal('voice-studio-modal');
+    });
+  }
+  if (btnTextMode) {
+    btnTextMode.addEventListener('click', () => {
+      btnTextMode.classList.add('active');
+      if (btnVoiceMode) btnVoiceMode.classList.remove('active');
+      if (chatTray) chatTray.classList.add('active');
+      if (chatInput) chatInput.focus();
+    });
+  }
+
+  // View All buttons
+  const btnOverviewAll = document.getElementById('btn-overview-view-all');
+  if (btnOverviewAll) btnOverviewAll.addEventListener('click', () => openModal('analytics-modal'));
+
+  const btnAnnounceAll = document.getElementById('btn-announcements-view-all');
+  if (btnAnnounceAll) btnAnnounceAll.addEventListener('click', () => openModal('modal-academic-regulations'));
+
+  const btnActivityAll = document.getElementById('btn-activity-view-all');
+  if (btnActivityAll) btnActivityAll.addEventListener('click', () => {
+    renderStudentOwnRequests();
+    openModal('modal-student-requests');
+  });
+
+  const btnQuickAll = document.getElementById('btn-quick-actions-all');
+  if (btnQuickAll) btnQuickAll.addEventListener('click', () => {
+    renderStudentOwnRequests();
+    openModal('modal-student-requests');
+  });
+
+  const btnMapAll = document.getElementById('btn-map-view-all');
+  if (btnMapAll) btnMapAll.addEventListener('click', () => openModal('modal-campus-timings'));
+
+  // Metric tiles click handlers
+  const metricTiles = document.querySelectorAll('.metrics-grid-2x2 .metric-tile');
+  if (metricTiles.length >= 4) {
+    metricTiles[0].style.cursor = 'pointer';
+    metricTiles[0].addEventListener('click', () => openModal('student-profile-modal'));
+    metricTiles[1].style.cursor = 'pointer';
+    metricTiles[1].addEventListener('click', () => openModal('modal-request-outpass'));
+    metricTiles[2].style.cursor = 'pointer';
+    metricTiles[2].addEventListener('click', () => openModal('modal-report-maintenance'));
+    metricTiles[3].style.cursor = 'pointer';
+    metricTiles[3].addEventListener('click', () => openModal('modal-hostel-facilities'));
+  }
+
+  // Announcements click handlers
+  document.querySelectorAll('.announcement-item').forEach(item => {
+    item.style.cursor = 'pointer';
+    item.addEventListener('click', () => {
+      const text = item.querySelector('.announcement-headline')?.textContent?.trim() || '';
+      if (text && chatInput && chatForm) {
+        chatInput.value = `Tell me more about: ${text}`;
+        if (chatTray) {
+          chatTray.classList.add('active');
+          chatTray.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
         chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
       }
+    });
+  });
+
+  // Recent activity items click handlers
+  document.querySelectorAll('.timeline-entry').forEach(entry => {
+    entry.style.cursor = 'pointer';
+    entry.addEventListener('click', () => {
+      renderStudentOwnRequests();
+      openModal('modal-student-requests');
     });
   });
 
@@ -2921,38 +3049,45 @@ function setupDashboardNavigation() {
   if (outpassForm) {
     outpassForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const dest = document.getElementById('outpass-destination').value.trim();
-      const leaveTime = document.getElementById('outpass-leave-time').value;
-      const returnTime = document.getElementById('outpass-return-time').value;
-      const reason = document.getElementById('outpass-reason').value.trim();
-      const parentPhone = document.getElementById('outpass-parent-phone').value.trim();
+      const dest = document.getElementById('outpass-destination')?.value?.trim() || 'Home';
+      const leaveTime = document.getElementById('outpass-leave-time')?.value || '';
+      const returnTime = document.getElementById('outpass-return-time')?.value || '';
+      const reason = document.getElementById('outpass-reason')?.value?.trim() || '';
+      const parentPhone = document.getElementById('outpass-parent-phone')?.value?.trim() || currentStudent.parent_phone;
 
-      const trackingId = 'CP-2026-' + Math.floor(1000 + Math.random() * 9000);
+      let trackingId = 'CP-2026-' + Math.floor(1000 + Math.random() * 9000);
 
       try {
-        await apiFetch(`${API_BASE}/requests`, {
+        const res = await apiFetch(`${API_BASE}/requests`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'outpass',
+            category: 'outpass',
             title: `Outpass to ${dest}`,
-            description: reason,
-            destination: dest,
-            leave_time: leaveTime,
-            return_time: returnTime,
-            parent_phone: parentPhone,
-            urgency: 'medium'
+            description: reason && reason.length >= 5 ? reason : `Outpass leave authorization for ${dest}`,
+            location: dest || 'Campus Exit',
+            urgency: 'medium',
+            leave_reason: reason || dest,
+            call_consent: true
           })
         });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.request?.tracking_id) trackingId = data.request.tracking_id;
+        }
       } catch (err) {}
 
       // Show generated Pass Card
       const card = document.getElementById('outpass-generated-card');
       if (card) {
         card.style.display = 'block';
-        document.getElementById('gen-outpass-id').textContent = trackingId;
-        document.getElementById('gen-outpass-dest').textContent = dest;
-        document.getElementById('gen-outpass-dates').textContent = `Departure: ${leaveTime || 'Today'} • Expected Return: ${returnTime || 'Tomorrow'}`;
+        const idEl = document.getElementById('gen-outpass-id');
+        if (idEl) idEl.textContent = trackingId;
+        const destEl = document.getElementById('gen-outpass-dest');
+        if (destEl) destEl.textContent = dest;
+        const dateEl = document.getElementById('gen-outpass-dates');
+        if (dateEl) dateEl.textContent = `Departure: ${leaveTime || 'Today'} • Expected Return: ${returnTime || 'Tomorrow'}`;
       }
 
       showToast(`Outpass request registered! Tracking Code: ${trackingId}`, 'success', 3500);
@@ -2965,27 +3100,32 @@ function setupDashboardNavigation() {
   if (maintForm) {
     maintForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const category = document.getElementById('maint-category').value;
-      const urgency = document.getElementById('maint-urgency').value;
-      const block = document.getElementById('maint-block').value;
-      const room = document.getElementById('maint-room').value.trim();
-      const description = document.getElementById('maint-description').value.trim();
+      const category = document.getElementById('maint-category')?.value || 'facilities';
+      const rawUrgency = document.getElementById('maint-urgency')?.value || 'medium';
+      const urgency = rawUrgency === 'emergency' ? 'critical' : (['low', 'medium', 'high', 'critical'].includes(rawUrgency) ? rawUrgency : 'medium');
+      const block = document.getElementById('maint-block')?.value || 'Residence Hall A';
+      const room = document.getElementById('maint-room')?.value?.trim() || 'Room 302';
+      const description = document.getElementById('maint-description')?.value?.trim() || '';
 
-      const trackingId = 'CP-2026-' + Math.floor(1000 + Math.random() * 9000);
+      let trackingId = 'CP-2026-' + Math.floor(1000 + Math.random() * 9000);
 
       try {
-        await apiFetch(`${API_BASE}/requests`, {
+        const res = await apiFetch(`${API_BASE}/requests`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'complaint',
             category: category,
             title: `${category.toUpperCase()} defect in ${block}, ${room}`,
-            description: description,
+            description: description && description.length >= 5 ? description : `Reported ${category} defect in ${block}, ${room}`,
             location: `${block}, ${room}`,
             urgency: urgency
           })
         });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.request?.tracking_id) trackingId = data.request.tracking_id;
+        }
       } catch (err) {}
 
       showToast(`Complaint registered with Facilities! Ref: ${trackingId}`, 'success', 3500);
@@ -3210,10 +3350,11 @@ window.adminTakeAction = async function(trackingId, action) {
     await apiFetch(`${API_BASE}/requests/${trackingId}/action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: action })
+      body: JSON.stringify({ action_type: action })
     });
     showToast(`Ticket ${trackingId} updated: ${action}`, 'success', 2000);
-    fetchRequestsAndPopulateLeftPane();
+    await fetchInitialData();
+    populateAdminDashboard();
   } catch (e) {
     showToast(`Error updating ticket: ${e.message}`, 'error', 3000);
   }
@@ -3227,7 +3368,8 @@ window.adminOutpassDecision = async function(trackingId, decision) {
       body: JSON.stringify({ decision: decision === 'approve' ? 'approved' : 'denied' })
     });
     showToast(`Outpass ${trackingId} ${decision}d by Coordinator override!`, 'success', 2500);
-    fetchRequestsAndPopulateLeftPane();
+    await fetchInitialData();
+    populateAdminDashboard();
   } catch (e) {
     showToast(`Outpass update error: ${e.message}`, 'error', 3000);
   }

@@ -13,6 +13,10 @@ CREATE TABLE IF NOT EXISTS tenants (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+INSERT INTO tenants (id, name, slug, domain, config)
+VALUES ('a0000000-0000-0000-0000-000000000001', 'Sample Engineering College', 'sample-college', 'sample-college.test', '{"brandColor": "#4F46E5", "slaHours": 24}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
 -- 1. Users & Staff Directory
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -217,6 +221,16 @@ CREATE TABLE IF NOT EXISTS auth_lockouts (
 );
 
 -- Ensure all tables have tenant_id column and correct constraints
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS roll_number VARCHAR(50);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_name VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(50);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS hostel_block VARCHAR(100);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS room_no VARCHAR(50);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('student', 'coordinator', 'admin', 'faculty', 'warden', 'security_gate', 'department_head', 'super_admin'));
+
 ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id UUID DEFAULT 'a0000000-0000-0000-0000-000000000001'::uuid REFERENCES tenants(id) ON DELETE CASCADE;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS tenant_id UUID DEFAULT 'a0000000-0000-0000-0000-000000000001'::uuid REFERENCES tenants(id) ON DELETE CASCADE;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
@@ -228,6 +242,19 @@ ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS tenant_id UUID DEFAULT 'a000
 ALTER TABLE security_events ADD COLUMN IF NOT EXISTS tenant_id UUID DEFAULT 'a0000000-0000-0000-0000-000000000001'::uuid REFERENCES tenants(id) ON DELETE CASCADE;
 ALTER TABLE outbox_events ADD COLUMN IF NOT EXISTS tenant_id UUID DEFAULT 'a0000000-0000-0000-0000-000000000001'::uuid REFERENCES tenants(id) ON DELETE CASCADE;
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS tenant_id UUID DEFAULT 'a0000000-0000-0000-0000-000000000001'::uuid REFERENCES tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS student_id UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE requests DROP CONSTRAINT IF EXISTS requests_status_check;
+ALTER TABLE requests ADD CONSTRAINT requests_status_check CHECK (status IN (
+    'submitted', 'triaged', 'awaiting_details', 'assigned', 
+    'in_progress', 'awaiting_approval', 'awaiting_parent_approval', 'awaiting_warden_approval',
+    'approved', 'resolved', 'confirmed', 'escalated', 'reopened', 'rejected'
+));
+
+ALTER TABLE request_actions DROP CONSTRAINT IF EXISTS request_actions_actor_type_check;
+ALTER TABLE request_actions ADD CONSTRAINT request_actions_actor_type_check CHECK (actor_type IN (
+    'student', 'ai_agent', 'coordinator', 'admin', 'system', 'parent', 'warden', 'security_gate'
+));
 
 -- Ensure voice_call_status check constraint supports failed_dispatch
 ALTER TABLE requests DROP CONSTRAINT IF EXISTS requests_voice_call_status_check;

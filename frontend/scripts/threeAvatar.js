@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.js';
 
 /**
  * ThreeAvatar — Executive-Grade Fluid Chromatic Speaking Orb

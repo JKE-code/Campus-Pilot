@@ -1,4 +1,6 @@
 // @ts-check
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
@@ -8,8 +10,8 @@ async function runMigration() {
   const adminPool = new Pool({
     host: process.env.POSTGRES_HOST || 'localhost',
     port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-    user: process.env.POSTGRES_USER || 'postgres',
-    password: process.env.POSTGRES_PASSWORD || 'test_password',
+    user: process.env.POSTGRES_ADMIN_USER || 'postgres',
+    password: process.env.POSTGRES_ADMIN_PASSWORD || process.env.POSTGRES_PASSWORD || 'test_password',
     database: process.env.POSTGRES_DB || 'campuspilot'
   });
 
@@ -82,7 +84,7 @@ async function runMigration() {
 }
 
 if (require.main === module) {
-  runMigration();
+  runMigration().then(() => process.exit(0)).catch(() => process.exit(1));
 }
 
 module.exports = { runMigration };

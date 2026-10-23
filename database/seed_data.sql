@@ -15,10 +15,12 @@ INSERT INTO users (id, name, email, password_hash, phone, role, department, roll
 ('a0000001-0000-0000-0000-000000000008', 'Sarah SuperAdmin', 'superadmin@sample-college.test', NULL, '+15550100008', 'super_admin', 'Platform Operations', NULL, NULL, NULL, NULL, NULL),
 ('a0000001-0000-0000-0000-000000000010', 'Alex Student', 'student@sample-college.test', NULL, '+15550100010', 'student', 'Computer Science', 'CS-2026-001', 'Jordan Parent', '+15550100020', 'Residence Hall A', 'Room 302'),
 ('a0000001-0000-0000-0000-000000000011', 'Sam Student', 'student2@sample-college.test', NULL, '+15550100011', 'student', 'Computer Science', 'CS-2026-002', 'Taylor Parent', '+15550100021', 'Residence Hall A', 'Room 201')
-ON CONFLICT (email) DO UPDATE SET
+ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
+  email = EXCLUDED.email,
   password_hash = EXCLUDED.password_hash,
   role = EXCLUDED.role,
+  department = EXCLUDED.department,
   parent_name = EXCLUDED.parent_name,
   parent_phone = EXCLUDED.parent_phone;
 
